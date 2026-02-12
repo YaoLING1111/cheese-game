@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧀 奶酪大盗在线版</title>
+    <style>
+        /* 全局样式 */
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; transition: background 0.5s; margin: 0; padding: 20px; }
+        
+        /* 状态背景色 */
+        body.day { background-color: #f4d03f; color: #333; }
+        body.night { background-color: #1a1a1a; color: #888; }
+        body.wake { background-color: #2ecc71; color: white; } /* 只有醒来的人是绿色 */
+
+        /* 容器控制 */
+        .screen { display: none; }
+        .active { display: block; }
+
+        /* 按钮与卡片 */
+        .btn { padding: 15px 30px; font-size: 18px; cursor: pointer; border: none; border-radius: 8px; margin: 10px; }
+        .btn-start { background: #e67e22; color: white; }
+        .player-card { background: rgba(255,255,255,0.2); padding: 10px; margin: 5px; border-radius: 5px; }
+        
+        /* 大眼仔图标 (醒来时显示) */
+        .eye-icon { font-size: 80px; margin: 20px; }
+    </style>
+</head>
+<body class="day">
+
+    <div id="screen-login" class="screen active">
+        <h1>🧀 谁是奶酪大盗？</h1>
+        <input type="text" id="username" placeholder="输入昵称 (比如: 汤姆猫)" style="padding: 10px; font-size: 16px;">
+        <br><br>
+        <button class="btn btn-start" onclick="joinGame()">加入房间</button>
+    </div>
+
+    <div id="screen-waiting" class="screen">
+        <h2>👥 等待玩家 (<span id="player-count">0</span>)</h2>
+        <div id="player-list"></div>
+        <br>
+        <button id="btn-start-game" class="btn btn-start" onclick="startGame()">开始游戏 (凑齐2人)</button>
+        <p>等待房主开始...</p>
+    </div>
+
+    <div id="screen-sleep" class="screen">
+        <div class="eye-icon">😴</div>
+        <h2>天黑请闭眼</h2>
+        <p>现在是 <span id="clock-display">0</span> 点</p>
+        <p>还没轮到你，请保持安静...</p>
+    </div>
+
+    <div id="screen-wake" class="screen">
+        <div class="eye-icon">👀</div>
+        <h2 id="action-title">轮到你了！</h2>
+        <p>你的身份: <strong id="my-role-display"></strong></p>
+        
+        <div id="thief-controls" style="display:none;">
+            <p>👇 点击下面一个人，把他变成同伙 👇</p>
+            <div id="target-list"></div>
+        </div>
+        
+        <p>行动时间结束自动闭眼...</p>
+    </div>
+
+    <div id="screen-day" class="screen">
+        <h1>☀️ 天亮了！</h1>
+        <h2 id="result-msg"></h2>
+        <p>请在现实中开始讨论并投票。</p>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let myId = null;
+        let myData = null; // 存我自己的角色和骰子
+
+        // --- 界面切换工具 ---
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        // --- 核心逻辑 ---
+
+        // 1. 加入游戏
+        function joinGame() {
+            const name = document.getElementById('username').value;
+            if (name) {
+                socket.emit('join', name);
+                myId = socket.id; // 记下我自己的ID
+            }
+        }
+
+        // 2. 监听玩家列表更新
+        socket.on('updateList', (players) => {
+            document.getElementById('player-count').innerText = players.length;
+            const list = document.getElementById('player-list');
+            list.innerHTML = players.map(p => `<div class="player-card">👤 ${p.name} ${p.id === myId ? '(我)' : ''}</div>`).join('');
+            
+            // 如果已经在房间里，切换到等待页
+            if(document.getElementById('screen-login').classList.contains('active')){
+                showScreen('screen-waiting');
+            }
+        });
+
+        // 3. 开始游戏
+        function startGame() {
+            socket.emit('startGame');
+        }
+
+        // 4. 游戏开始：接收身份
+        socket.on('gameStarted', (allPlayers) => {
+            // 找到我自己
+            myData = allPlayers.find(p => p.id === socket.id);
+            if (!myData) return alert("出错了，没找到你！");
+
+            console.log("我的身份:", myData);
+            alert(`你的身份是：${myData.role}\n你的骰子是：${myData.dice}点\n请记住！`);
+        });
+
+        // 5. 夜晚时间流转 (核心判定)
+        socket.on('nightHour', (hour) => {
+            document.getElementById('clock-display').innerText = hour;
+
+            // 判断1：是不是大盗时间 (7点)
+            if (hour === 7) {
+                if (myData.role === 'Thief') {
+                    wakeUpThief();
+                } else {
+                    goSleep();
+                }
+                return;
+            }
+
+            // 判断2：是不是我的骰子点数
+            if (myData.dice === hour) {
+                wakeUpNormal();
+            } else {
+                goSleep();
+            }
+        });
+
+        // 6. 辅助显示函数
+        function goSleep() {
+            document.body.className = 'night';
+            showScreen('screen-sleep');
+        }
+
+        function wakeUpNormal() {
+            document.body.className = 'wake'; // 变绿
+            document.getElementById('action-title').innerText = `现在是 ${myData.dice} 点！`;
+            document.getElementById('my-role-display').innerText = myData.role;
+            document.getElementById('thief-controls').style.display = 'none'; // 隐藏大盗按钮
+            showScreen('screen-wake');
+        }
+
+        function wakeUpThief() {
+            document.body.className = 'wake'; 
+            document.getElementById('action-title').innerText = `😈 大盗行动时间`;
+            document.getElementById('thief-controls').style.display = 'block'; // 显示大盗按钮
+            showScreen('screen-wake');
+
+            // 重新请求一下玩家列表，生成按钮
+            // (简单做法：直接发个请求让服务器发列表，或者这里暂时不刷新，用旧的)
+            // 这里为了演示，我们假设页面不刷新，直接生成假按钮，实际应该遍历 players
+            // 真实的逻辑需要服务器发来 currentPlayers，这里简化：
+            socket.emit('requestPlayerListForThief'); 
+        }
+
+        // 补充：为了大盗选人，我们需要最新的玩家列表
+        // 这一步有点复杂，我们简化一下：让大盗盲选（输入ID）或者这里写死逻辑
+        // 更好的办法：服务器在 gameStarted 时发了 players，我们存个全局变量
+        let allPlayersCache = [];
+        socket.on('gameStarted', (p) => { allPlayersCache = p; });
+
+        // 渲染大盗按钮
+        function renderThiefButtons() {
+             const container = document.getElementById('target-list');
+             container.innerHTML = allPlayersCache
+                .filter(p => p.id !== myId) // 不能选自己
+                .map(p => `<button class="btn" onclick="chooseFollower('${p.id}')">${p.name}</button>`)
+                .join('');
+        }
+        // 覆盖上面的 wakeUpThief 调用 renderThiefButtons
+        const oldWake = wakeUpThief;
+        wakeUpThief = function() {
+            oldWake(); // 调用原来的
+            renderThiefButtons(); // 渲染按钮
+        }
+
+
+        // 7. 大盗发送指令
+        window.chooseFollower = function(targetId) {
+            if(confirm("确定选他做同伙吗？")) {
+                socket.emit('thiefChooseFollower', targetId);
+                alert("已选择！等待天亮...");
+                document.getElementById('thief-controls').style.display = 'none';
+            }
+        }
+
+        // 8. 收到私密消息 (比如被选为同伙)
+        socket.on('secretMessage', (data) => {
+            if (data.type === 'YouAreFollower') {
+                alert(`🤫 嘘！大盗是 【${data.thiefName}】！\n你是他的同伙！`);
+                document.getElementById('result-msg').innerText = `你的隐藏身份：同伙 (老大是 ${data.thiefName})`;
+            }
+        });
+
+        // 9. 天亮
+        socket.on('phaseChange', (phase) => {
+            if (phase === 'day') {
+                document.body.className = 'day';
+                showScreen('screen-day');
+            }
+        });
+
+    </script>
+</body>
+</html>
