@@ -9,34 +9,30 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- 🧀 游戏核心数据 ---
-let players = [];    // 玩家列表
-let gamePhase = 'waiting'; // waiting, night, day
-let currentHour = 0; // 当前是几点 (1-6)
-let thiefId = null;  // 记录大盗是谁，方便后台查找
+// --- 🧀 游戏全局数据 ---
+let players = [];    
+let gamePhase = 'waiting'; 
+let currentHour = 0; 
+let cheeseHolder = null; // 【关键修复】之前这行丢了，导致报错
+let votes = {};      
+let gameTimer = null;    // 【关键修复】防幽灵车定时器
 
-// 身份配置 (简单起见，写死一个6人局配置)
-// 你可以根据实际人数修改这里
 const ROLE_CONFIG = ['Thief', 'Critter', 'Follower', 'GoodRat', 'GoodRat', 'GoodRat'];
 
 io.on('connection', (socket) => {
     console.log('玩家连接:', socket.id);
 
-    // 1. 玩家加入
+    // 1. 加入
     socket.on('join', (name) => {
-        if (gamePhase !== 'waiting') return; // 游戏开始后不能进
-        
-        // 简单去重：如果名字一样，就在后面加个随机数
         if(players.find(p => p.name === name)) {
             name = name + '#' + Math.floor(Math.random()*100);
         }
-
         players.push({
             id: socket.id,
             name: name,
             role: '?',
             dice: 0,
-            isFollower: false // 标记是否被选为同伙
+            isFollower: false
         });
         io.emit('updateList', players);
     });
@@ -44,107 +40,164 @@ io.on('connection', (socket) => {
     // 2. 开始游戏
     socket.on('startGame', () => {
         if (players.length < 2) return; 
+        
+        // 🛑 刹车系统
+        if (gameTimer) { clearTimeout(gameTimer); gameTimer = null; }
 
         gamePhase = 'night';
-        assignRolesAndDice();
+        cheeseHolder = null; 
+        votes = {};
         
-        // 告诉所有人：游戏开始了，顺便把最新的玩家列表(含身份)发下去
-        // 注意：实际开发中，身份应该保密，只发给对应的人。但作为MVP，先全发方便调试。
+        assignRolesAndDice();
         io.emit('gameStarted', players);
         
-        // 启动夜晚流程！
+        console.log("=== 新游戏开始 ===");
         startNightPhase(1); 
     });
 
-    // 3. 大盗选择同伙 (秘密通讯)
+    // 3. 大盗选同伙
     socket.on('thiefChooseFollower', (targetId) => {
-        // 安全检查：只有大盗能发这个指令
         const me = players.find(p => p.id === socket.id);
         if (!me || me.role !== 'Thief') return;
 
-        console.log(`大盗选择了同伙: ${targetId}`);
-
-        // 找到那个倒霉蛋，标记为同伙
         const target = players.find(p => p.id === targetId);
         if (target) {
             target.isFollower = true;
-            // 【关键】只告诉这个倒霉蛋一个人！
-            io.to(targetId).emit('secretMessage', {
-                type: 'YouAreFollower',
-                thiefName: me.name
-            });
-            // 也可以给大盗一个反馈
-            socket.emit('secretMessage', {
-                type: 'System',
-                msg: `你成功选择了 ${target.name} 作为同伙`
+            io.to(targetId).emit('secretMessage', { type: 'YouAreFollower', thiefName: me.name });
+        }
+    });
+
+    // 4. 偷奶酪
+    socket.on('stealCheese', () => {
+        const me = players.find(p => p.id === socket.id);
+        if (me && me.role === 'Thief' && me.dice === currentHour && cheeseHolder === null) {
+            cheeseHolder = me.id; 
+            console.log(`大盗 ${me.name} 偷走了奶酪！`);
+            
+            // 只告诉醒着的人
+            const awakePlayers = players.filter(p => p.dice === currentHour);
+            awakePlayers.forEach(p => {
+                io.to(p.id).emit('cheeseUpdate', { hasCheese: false, thiefId: me.id });
             });
         }
     });
-    
-    // 断开连接处理
+
+    // 5. 查验 & 投票 & 断开连接
+    socket.on('peekPlayer', (tid) => {
+        const me = players.find(p => p.id === socket.id);
+        const target = players.find(p => p.id === tid);
+        if (me && me.dice === currentHour && target) {
+            socket.emit('peekResult', { name: target.name, dice: target.dice });
+        }
+    });
+
+    socket.on('submitVote', (tid) => {
+        if (gamePhase !== 'day') return;
+        votes[socket.id] = tid;
+        if (Object.keys(votes).length === players.length) calculateWinner();
+    });
+
     socket.on('disconnect', () => {
         players = players.filter(p => p.id !== socket.id);
         io.emit('updateList', players);
+        if(players.length === 0 && gameTimer) { clearTimeout(gameTimer); gameTimer = null; }
     });
 });
 
-// --- 🎲 辅助函数：发身份和骰子 ---
+// --- 辅助函数 ---
 function assignRolesAndDice() {
-    // 1. 准备身份
     let currentRoles = ROLE_CONFIG.slice(0, players.length);
-    // 如果人多，身份不够，用 GoodRat 补齐
-    while(currentRoles.length < players.length) {
-        currentRoles.push('GoodRat');
-    }
-    // 打乱
+    while(currentRoles.length < players.length) currentRoles.push('GoodRat');
     currentRoles.sort(() => Math.random() - 0.5);
 
-    // 2. 分配
     players.forEach((p, index) => {
         p.role = currentRoles[index];
-        p.dice = Math.floor(Math.random() * 6) + 1; // 1-6点
+        p.dice = Math.floor(Math.random() * 6) + 1; // 正常随机
+        // p.dice = 1; // ⚠️ 测试用：强制全员1点 (测完记得注释掉)
         p.isFollower = false;
-        
-        if (p.role === 'Thief') thiefId = p.id;
     });
-    
-    console.log("身份分配完毕:", players.map(p => `${p.name}(${p.role})`).join(', '));
 }
 
-// --- 🌙 辅助函数：自动流程控制 ---
 function startNightPhase(hour) {
     currentHour = hour;
 
-    // --- 阶段 1: 大盗选人 (我们设定在 7点 进行) ---
+    // A. 大盗时间 (7点)
     if (hour === 7) {
         console.log("--- 7点: 大盗时间 ---");
-        io.emit('nightHour', 7); // 广播7点，前端大盗界面会亮起
-
-        // 给大盗 15秒 选择时间，比普通回合稍长一点
-        setTimeout(() => {
-            startNightPhase(8); // 进入天亮
-        }, 15000); 
+        players.forEach(p => {
+            const isThief = (p.role === 'Thief');
+            io.to(p.id).emit('nightHour', { 
+                hour: 7, 
+                cheeseExist: isThief ? (cheeseHolder === null) : null, 
+                awakeList: [] 
+            });
+        });
+        gameTimer = setTimeout(() => startNightPhase(8), 15000); 
         return;
     }
 
-    // --- 阶段 2: 天亮了 ---
+    // B. 天亮 (8点)
     if (hour > 7) {
         console.log("--- 天亮了 ---");
         gamePhase = 'day';
-        io.emit('phaseChange', 'day'); // 广播天亮，前端显示投票界面
+        io.emit('phaseChange', { phase: 'day', playerList: players });
         return;
     }
 
-    // --- 阶段 3: 普通夜晚 (1-6点) ---
+    // C. 普通夜晚 (1-6点)
     console.log(`--- ${hour} 点 ---`);
-    io.emit('nightHour', hour); // 广播时间
+    const awakePlayers = players.filter(p => p.dice === hour);
+    const awakeIds = awakePlayers.map(p => p.id);
 
-    // 10秒后自动进入下一个小时
-    setTimeout(() => {
-        startNightPhase(hour + 1);
-    }, 10000); 
+    players.forEach(p => {
+        const isAwake = (p.dice === hour);
+        if (isAwake) {
+            io.to(p.id).emit('nightHour', { 
+                hour: hour, 
+                cheeseExist: (cheeseHolder === null), 
+                awakeList: awakeIds 
+            });
+        } else {
+            io.to(p.id).emit('nightHour', { hour: hour, cheeseExist: null, awakeList: [] });
+        }
+    });
+
+    gameTimer = setTimeout(() => startNightPhase(hour + 1), 10000); 
+}
+
+function calculateWinner() {
+    let voteCounts = {};
+    Object.values(votes).forEach(vid => voteCounts[vid] = (voteCounts[vid]||0)+1);
+    
+    let maxVotes = 0;
+    let victimId = null;
+    for(let vid in voteCounts) {
+        if(voteCounts[vid] > maxVotes) { maxVotes = voteCounts[vid]; victimId = vid; }
+    }
+
+    const victim = players.find(p => p.id === victimId);
+    let result = { winner: '', message: '' };
+
+    if(!victim) {
+        result.winner = '平局';
+        result.message = '没人被投出？';
+    } else {
+        if (victim.role === 'Critter') {
+            result.winner = '呆呆鼠';
+            result.message = `🐭 呆呆鼠【${victim.name}】被抓！呆呆鼠胜利！`;
+        } else if (victim.role === 'Thief') {
+            result.winner = '好鼠';
+            result.message = `🚓 大盗【${victim.name}】被抓！好人胜利！`;
+        } else {
+            result.winner = '大盗 & 同伙';
+            result.message = `😱 冤枉啊！【${victim.name}】是好人！大盗胜利！`;
+        }
+    }
+    io.emit('gameOver', result);
+    gamePhase = 'waiting'; 
+    if (gameTimer) clearTimeout(gameTimer);
 }
 
 server.listen(3000, () => {
-    console.log('🧀 服务器就绪: http://localhost:3000');
+    console.log('🧀 服务器已修复 (防作弊+防幽灵车+奶酪变量修复)');
 });
