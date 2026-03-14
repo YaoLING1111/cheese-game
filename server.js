@@ -7,9 +7,15 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-app.use(express.static(path.join(__dirname, 'public')));
+const publicDir = path.join(__dirname, 'public');
+
+app.use(express.static(publicDir));
+app.get('/', (_req, res) => {
+    res.sendFile(path.join(publicDir, 'index.html'));
+});
 
 const MIN_PLAYERS = 3;
+const EMPTY_NIGHT_DELAY_MS = 10000;
 
 let players = [];
 let gamePhase = 'waiting';
@@ -281,6 +287,7 @@ function sendPrivateIdentities() {
 }
 
 function startNightHour(hour) {
+    clearGameTimer();
     gamePhase = 'night';
     currentHour = hour;
 
@@ -304,9 +311,11 @@ function startNightHour(hour) {
             canPeek: false,
             canComplete: false,
             completionRequired: false,
-            sleepingMessage: `${hour} 点无人醒来，自动进入下一时刻。`,
+            sleepingMessage: `${hour} 点进行中，请保持闭眼。`,
         });
-        advanceNightFlow();
+        gameTimer = setTimeout(() => {
+            advanceNightFlow();
+        }, EMPTY_NIGHT_DELAY_MS);
         return;
     }
 
