@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奶酪大盗</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            text-align: center;
+            transition: background 0.3s;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            background: #f7f7f7;
+        }
+
+        body.night {
+            background-color: #1c1f26;
+            color: #d8d8d8;
+        }
+
+        body.wake {
+            background-color: #2e7d32;
+            color: #fff;
+        }
+
+        body.day {
+            background-color: #f4d03f;
+            color: #333;
+        }
+
+        .screen {
+            display: none;
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .active {
+            display: block;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.18);
+            border-radius: 12px;
+            padding: 18px;
+            margin: 16px auto;
+        }
+
+        .btn {
+            padding: 12px 18px;
+            margin: 6px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .btn-start {
+            background: #e67e22;
+            color: #fff;
+        }
+
+        .btn-action {
+            background: #e74c3c;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .btn-peek {
+            background: #3498db;
+            color: #fff;
+        }
+
+        .btn-vote {
+            background: #c0392b;
+            color: #fff;
+        }
+
+        .player-card {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.26);
+            padding: 8px 12px;
+            margin: 5px;
+            border-radius: 8px;
+        }
+
+        #table-center {
+            margin: 20px auto;
+            padding: 20px;
+            border: 3px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            max-width: 420px;
+        }
+
+        .cheese-icon {
+            font-size: 80px;
+        }
+
+        .cheese-gone {
+            opacity: 0.35;
+            filter: grayscale(100%);
+        }
+
+        .muted {
+            opacity: 0.82;
+        }
+
+        #sleep-mask {
+            font-size: 28px;
+            margin-top: 30px;
+        }
+
+        #actions-area {
+            margin-top: 18px;
+        }
+
+        #system-message,
+        #peek-result {
+            font-weight: bold;
+            min-height: 24px;
+        }
+
+        #identity-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+        }
+
+        #identity-modal .panel {
+            max-width: 360px;
+            background: #ffffff;
+            color: #222;
+        }
+    </style>
+</head>
+<body class="day">
+    <div id="screen-login" class="screen active">
+        <h1>奶酪大盗</h1>
+        <p>输入名字加入房间，然后在夜里根据自己的骰子点数醒来。</p>
+        <input type="text" id="username" placeholder="名字" maxlength="20">
+        <button class="btn btn-start" onclick="joinGame()">加入</button>
+    </div>
+
+    <div id="screen-waiting" class="screen">
+        <h2>等待开局</h2>
+        <p>当前人数：<span id="player-count">0</span></p>
+        <p class="muted">至少需要 <span id="min-player-count">3</span> 人。</p>
+        <div id="player-list" class="panel"></div>
+        <button id="start-btn" class="btn btn-start" onclick="startGame()">开始游戏</button>
+        <p id="lobby-tip" class="muted"></p>
+    </div>
+
+    <div id="screen-night" class="screen">
+        <h2 id="clock-display">0 点</h2>
+        <div id="table-center">
+            <div id="cheese-img" class="cheese-icon">🧀</div>
+            <p id="cheese-status">奶酪在桌上</p>
+        </div>
+
+        <div id="sleep-mask">
+            <h1>闭眼中...</h1>
+            <p class="muted">还没轮到你，保持安静。</p>
+        </div>
+
+        <div id="wake-area" class="panel" style="display:none;">
+            <h3>你醒了</h3>
+            <p>身份：<strong id="my-role"></strong></p>
+            <p>骰子：<strong id="my-dice"></strong></p>
+            <p>同时醒来的其他玩家：<span id="peers-list"></span></p>
+            <div id="actions-area"></div>
+            <p id="peek-result"></p>
+        </div>
+
+        <p id="system-message"></p>
+    </div>
+
+    <div id="screen-day" class="screen">
+        <h1>天亮了</h1>
+        <p>请投票选出你怀疑的玩家。</p>
+        <div id="vote-list" class="panel"></div>
+        <p id="day-message"></p>
+    </div>
+
+    <div id="identity-modal">
+        <div class="panel">
+            <h3>查看身份</h3>
+            <p id="identity-modal-text"></p>
+            <button class="btn btn-start" onclick="confirmIdentity()">知道了</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const roleLabels = {
+            Thief: '奶酪大盗',
+            Critter: '呆呆鼠',
+            Follower: '同伙',
+            GoodRat: '好鼠',
+            '?': '未分配'
+        };
+
+        let myId = '';
+        let allPlayers = [];
+        let myIdentity = { role: '?', dice: 0, isFollower: false };
+        let hasJoined = false;
+        let selectedVoteId = null;
+        let minPlayers = 3;
+        let announcedOpeningIdentity = false;
+        let hasUsedPeek = false;
+        let currentNightData = null;
+        let hasCompletedNightTurn = false;
+        let peekResultText = '';
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        function joinGame() {
+            const name = document.getElementById('username').value.trim();
+            if (!name) {
+                alert('请输入名字');
+                return;
+            }
+
+            socket.emit('join', name);
+        }
+
+        function startGame() {
+            socket.emit('startGame');
+        }
+
+        function getMyDisplayRoleKey() {
+            return myIdentity.isFollower ? 'Follower' : myIdentity.role;
+        }
+
+        function getRoleText(roleKey) {
+            return roleLabels[roleKey] || roleKey;
+        }
+
+        function setSystemMessage(message) {
+            document.getElementById('system-message').innerText = message || '';
+            document.getElementById('day-message').innerText = message || '';
+        }
+
+        function showIdentityModal() {
+            document.getElementById('identity-modal').style.display = 'flex';
+            document.getElementById('identity-modal-text').innerText =
+                `你的身份是：${getRoleText(getMyDisplayRoleKey())}\n你的骰子是：${myIdentity.dice} 点`;
+        }
+
+        function hideIdentityModal() {
+            document.getElementById('identity-modal').style.display = 'none';
+        }
+
+        function confirmIdentity() {
+            hideIdentityModal();
+            setSystemMessage('你已确认身份，等待其他玩家确认。');
+            socket.emit('confirmIdentity');
+        }
+
+        function renderPlayerCards(containerId, players) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            players.forEach((player) => {
+                const card = document.createElement('div');
+                card.className = 'player-card';
+                card.innerText = player.name;
+                container.appendChild(card);
+            });
+        }
+
+        function renderLobby(gamePhase) {
+            document.getElementById('player-count').innerText = allPlayers.length;
+            document.getElementById('min-player-count').innerText = minPlayers;
+            renderPlayerCards('player-list', allPlayers);
+
+            const startBtn = document.getElementById('start-btn');
+            const enoughPlayers = allPlayers.length >= minPlayers;
+            startBtn.disabled = !enoughPlayers || gamePhase !== 'waiting';
+            document.getElementById('lobby-tip').innerText = enoughPlayers
+                ? '任意玩家都可以开始。'
+                : `人数不足，至少需要 ${minPlayers} 人。`;
+        }
+
+        function updateCheeseUI(exists) {
+            if (exists === null || typeof exists === 'undefined') {
+                return;
+            }
+
+            const cheeseImg = document.getElementById('cheese-img');
+            const cheeseStatus = document.getElementById('cheese-status');
+            if (exists) {
+                cheeseImg.classList.remove('cheese-gone');
+                cheeseImg.innerText = '🧀';
+                cheeseStatus.innerText = '奶酪还在桌上';
+            } else {
+                cheeseImg.classList.add('cheese-gone');
+                cheeseImg.innerText = '❌';
+                cheeseStatus.innerText = '奶酪已经被偷走了';
+            }
+        }
+
+        function goSleep(message) {
+            document.body.className = 'night';
+            showScreen('screen-night');
+            document.getElementById('sleep-mask').style.display = 'block';
+            document.getElementById('wake-area').style.display = 'none';
+            document.querySelector('#sleep-mask h1').innerText = message || '闭眼中...';
+        }
+
+        function completeNightTurn() {
+            socket.emit('completeNightTurn');
+        }
+
+        function wakeUp(data) {
+            document.body.className = 'wake';
+            showScreen('screen-night');
+            document.getElementById('sleep-mask').style.display = 'none';
+            document.getElementById('wake-area').style.display = 'block';
+            document.getElementById('my-role').innerText = getRoleText(getMyDisplayRoleKey());
+            document.getElementById('my-dice').innerText = myIdentity.dice;
+            document.getElementById('peers-list').innerText = data.awakeNames.length
+                ? data.awakeNames.join('、')
+                : '只有你自己';
+            const actionDiv = document.getElementById('actions-area');
+            actionDiv.innerHTML = '';
+            document.getElementById('peek-result').innerText = peekResultText;
+
+            if (data.canSteal) {
+                const stealBtn = document.createElement('button');
+                stealBtn.className = 'btn btn-action';
+                stealBtn.innerText = '偷奶酪';
+                stealBtn.onclick = () => socket.emit('stealCheese');
+                actionDiv.appendChild(stealBtn);
+            }
+
+            if (data.canPeek && !hasUsedPeek) {
+                const title = document.createElement('p');
+                title.innerText = '你是唯一醒着的人，可以查看一名玩家的骰子：';
+                actionDiv.appendChild(title);
+
+                allPlayers.forEach((player) => {
+                    if (player.id === myId) {
+                        return;
+                    }
+                    const peekBtn = document.createElement('button');
+                    peekBtn.className = 'btn btn-peek';
+                    peekBtn.innerText = player.name;
+                    peekBtn.onclick = () => {
+                        hasUsedPeek = true;
+                        Array.from(actionDiv.querySelectorAll('.btn-peek')).forEach((btn) => {
+                            btn.disabled = true;
+                        });
+                        socket.emit('peekPlayer', player.id);
+                    };
+                    actionDiv.appendChild(peekBtn);
+                });
+            }
+
+            if (!data.canSteal && (!data.canPeek || hasUsedPeek)) {
+                const noAction = document.createElement('p');
+                noAction.className = 'muted';
+                noAction.innerText = '这一回合你没有额外行动。';
+                actionDiv.appendChild(noAction);
+            }
+
+            if (data.canComplete) {
+                const completeBtn = document.createElement('button');
+                completeBtn.className = 'btn btn-start';
+                completeBtn.innerText = hasCompletedNightTurn ? '已完成' : '我已完成';
+                completeBtn.disabled = hasCompletedNightTurn;
+                completeBtn.onclick = completeNightTurn;
+                actionDiv.appendChild(completeBtn);
+            } else if (data.completionRequired) {
+                const waitingTip = document.createElement('p');
+                waitingTip.className = 'muted';
+                waitingTip.innerText = '完成你的动作后，才能继续到下一时刻。';
+                actionDiv.appendChild(waitingTip);
+            }
+        }
+
+        function renderNightHour(data) {
+            currentNightData = { ...data };
+            hasCompletedNightTurn = false;
+            peekResultText = '';
+            document.getElementById('clock-display').innerText = data.hour + ' 点';
+            updateCheeseUI(data.cheeseAvailable);
+            setSystemMessage('');
+
+            if (data.isAwake) {
+                wakeUp(data);
+            } else {
+                goSleep(data.sleepingMessage || '闭眼中...');
+            }
+        }
+
+        function renderFollowerChoice(chooserId, cheeseAvailable) {
+            document.getElementById('clock-display').innerText = '选同伙阶段';
+            peekResultText = '';
+            document.getElementById('peek-result').innerText = '';
+            updateCheeseUI(cheeseAvailable);
+
+            if (myId === chooserId && myIdentity.role === 'Thief') {
+                document.body.className = 'wake';
+                showScreen('screen-night');
+                document.getElementById('sleep-mask').style.display = 'none';
+                document.getElementById('wake-area').style.display = 'block';
+                document.getElementById('my-role').innerText = getRoleText(getMyDisplayRoleKey());
+                document.getElementById('my-dice').innerText = myIdentity.dice;
+                document.getElementById('peers-list').innerText = '现在请选择一名同伙';
+
+                const actionDiv = document.getElementById('actions-area');
+                actionDiv.innerHTML = '';
+
+                allPlayers.forEach((player) => {
+                    if (player.id === myId) {
+                        return;
+                    }
+                    const followBtn = document.createElement('button');
+                    followBtn.className = 'btn btn-action';
+                    followBtn.innerText = `选择 ${player.name}`;
+                    followBtn.onclick = () => socket.emit('thiefChooseFollower', player.id);
+                    actionDiv.appendChild(followBtn);
+                });
+            } else {
+                goSleep('大盗正在选择同伙...');
+            }
+        }
+
+        function renderVoteList() {
+            const voteList = document.getElementById('vote-list');
+            voteList.innerHTML = '';
+
+            allPlayers.forEach((player) => {
+                const voteBtn = document.createElement('button');
+                voteBtn.className = 'btn btn-vote';
+                voteBtn.innerText = `投 ${player.name}`;
+                voteBtn.disabled = Boolean(selectedVoteId);
+                voteBtn.onclick = () => {
+                    if (confirm(`确定投票给 ${player.name} 吗？`)) {
+                        socket.emit('submitVote', player.id);
+                    }
+                };
+                voteList.appendChild(voteBtn);
+            });
+        }
+
+        socket.on('connect', () => {
+            myId = socket.id;
+        });
+
+        socket.on('updateList', (payload) => {
+            allPlayers = payload.players || [];
+            minPlayers = payload.minPlayers || 3;
+            hasJoined = allPlayers.some((player) => player.id === myId) || hasJoined;
+            renderLobby(payload.gamePhase);
+
+            if (hasJoined && payload.gamePhase === 'waiting') {
+                document.body.className = 'day';
+                showScreen('screen-waiting');
+            }
+        });
+
+        socket.on('gameStarted', (payload) => {
+            allPlayers = payload.players || [];
+            selectedVoteId = null;
+            announcedOpeningIdentity = false;
+            hasUsedPeek = false;
+            currentNightData = null;
+            hasCompletedNightTurn = false;
+            peekResultText = '';
+            updateCheeseUI(true);
+            setSystemMessage('游戏开始，请先查看并确认自己的身份。');
+            goSleep('等待身份确认...');
+        });
+
+        socket.on('identityUpdate', (data) => {
+            myIdentity = data;
+            if (!announcedOpeningIdentity && data.role !== '?') {
+                announcedOpeningIdentity = true;
+                showIdentityModal();
+            }
+        });
+
+        socket.on('nightHour', (data) => {
+            renderNightHour(data);
+        });
+
+        socket.on('cheeseUpdate', (data) => {
+            updateCheeseUI(data.cheeseAvailable);
+            if (currentNightData && currentNightData.isAwake) {
+                currentNightData.cheeseAvailable = data.cheeseAvailable;
+                if (data.thiefId === myId) {
+                    currentNightData.canSteal = false;
+                    currentNightData.canComplete = true;
+                    wakeUp(currentNightData);
+                }
+            }
+            if (data.thiefId !== myId) {
+                alert(`你亲眼看到【${data.thiefName}】偷走了奶酪。`);
+            }
+        });
+
+        socket.on('peekResult', (result) => {
+            peekResultText = `${result.name} 的骰子是 ${result.dice} 点`;
+            document.getElementById('peek-result').innerText = peekResultText;
+            if (currentNightData) {
+                currentNightData.canPeek = false;
+                currentNightData.canComplete = true;
+                wakeUp(currentNightData);
+            }
+        });
+
+        socket.on('chooseFollowerPhase', (payload) => {
+            allPlayers = payload.players || [];
+            setSystemMessage('夜晚结束，进入选同伙阶段。');
+            renderFollowerChoice(payload.chooserId, payload.cheeseAvailable);
+        });
+
+        socket.on('dayStarted', (payload) => {
+            allPlayers = payload.players || [];
+            selectedVoteId = null;
+            document.body.className = 'day';
+            showScreen('screen-day');
+            setSystemMessage('请开始投票。');
+            renderVoteList();
+        });
+
+        socket.on('voteConfirmed', () => {
+            selectedVoteId = 'done';
+            setSystemMessage('你的投票已提交，等待其他玩家。');
+            renderVoteList();
+        });
+
+        socket.on('nightTurnCompleted', () => {
+            hasCompletedNightTurn = true;
+            if (currentNightData) {
+                currentNightData.canComplete = true;
+                wakeUp(currentNightData);
+            }
+            setSystemMessage('你已完成本轮动作，等待其他醒着的玩家。');
+        });
+
+        socket.on('secretMessage', (data) => {
+            myIdentity.isFollower = true;
+            alert(`你被选为了同伙。\n奶酪大盗是：${data.thiefName}`);
+        });
+
+        socket.on('systemMessage', (message) => {
+            setSystemMessage(message);
+        });
+
+        socket.on('gameAborted', (payload) => {
+            hideIdentityModal();
+            document.body.className = 'day';
+            showScreen('screen-waiting');
+            setSystemMessage(payload.message);
+            alert(payload.message);
+        });
+
+        socket.on('gameOver', (result) => {
+            hideIdentityModal();
+            const revealText = (result.reveals || []).map((player) => {
+                if (player.isFollower && player.role !== 'Thief') {
+                    return `${player.name}：同伙（原始身份 ${getRoleText(player.role)}，骰子 ${player.dice}）`;
+                }
+                return `${player.name}：${getRoleText(player.role)}，骰子 ${player.dice}`;
+            }).join('\n');
+
+            alert(`${result.message}\n\n身份公开：\n${revealText}`);
+        });
+    </script>
+</body>
+</html>
