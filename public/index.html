@@ -10,50 +10,115 @@
             text-align: center;
             transition: background 0.3s;
             margin: 0;
-            padding: 20px;
-            color: #333;
-            background: #f7f7f7;
+            padding: 24px;
+            min-height: 100vh;
+            color: #fff7e8;
+            background: #24140a;
+            overflow-x: hidden;
+            isolation: isolate;
+            --page-bg: url('/assets/背景图1.jpg');
+            --overlay: rgba(26, 13, 5, 0.58);
+        }
+
+        body::before,
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        body::before {
+            z-index: -2;
+            background-image: var(--page-bg);
+            background-size: cover;
+            background-position: center;
+            filter: saturate(1.05);
+            transform: scale(1.02);
+        }
+
+        body::after {
+            z-index: -1;
+            background:
+                radial-gradient(circle at top, rgba(255, 178, 77, 0.2), transparent 38%),
+                linear-gradient(180deg, var(--overlay), rgba(14, 8, 5, 0.72));
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body.night {
-            background-color: #1c1f26;
+            --overlay: rgba(5, 8, 18, 0.76);
             color: #d8d8d8;
         }
 
         body.wake {
-            background-color: #2e7d32;
+            --overlay: rgba(26, 78, 38, 0.6);
             color: #fff;
         }
 
         body.day {
-            background-color: #f4d03f;
-            color: #333;
+            --overlay: rgba(72, 35, 6, 0.5);
+            color: #fff7e8;
         }
 
         .screen {
             display: none;
-            max-width: 720px;
+            width: 100%;
+            max-width: 960px;
             margin: 0 auto;
+            padding-top: 42px;
         }
 
         .active {
             display: block;
         }
 
+        .screen > p {
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            line-height: 1.55;
+        }
+
         .panel {
-            background: rgba(255, 255, 255, 0.18);
-            border-radius: 12px;
-            padding: 18px;
-            margin: 16px auto;
+            background: rgba(255, 248, 230, 0.86);
+            border: 1px solid rgba(255, 255, 255, 0.48);
+            border-radius: 8px;
+            padding: 22px;
+            margin: 18px auto;
+            color: #2b1a0c;
+            box-shadow: 0 16px 42px rgba(0, 0, 0, 0.26);
+            backdrop-filter: blur(8px);
+        }
+
+        h1 {
+            margin: 8px 0 18px;
+            font-size: clamp(42px, 8vw, 76px);
+            line-height: 1;
+            text-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+        }
+
+        h2 {
+            font-size: clamp(30px, 5vw, 48px);
+        }
+
+        h3 {
+            font-size: 22px;
+        }
+
+        p {
+            font-size: clamp(17px, 2.7vw, 22px);
         }
 
         .btn {
-            padding: 12px 18px;
+            padding: 13px 20px;
             margin: 6px;
             border-radius: 8px;
             border: none;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 17px;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
         }
 
         .btn:disabled {
@@ -82,12 +147,272 @@
             color: #fff;
         }
 
+        .preference-panel {
+            max-width: 680px;
+        }
+
+        .account-panel {
+            max-width: 680px;
+        }
+
+        .account-fields {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .account-fields input {
+            min-width: 190px;
+            padding: 13px 14px;
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            font-size: 17px;
+        }
+
+        #account-status {
+            font-weight: bold;
+        }
+
+        .preference-title {
+            margin: 0 0 10px;
+            font-weight: bold;
+        }
+
+        .preference-options {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .preference-btn {
+            min-width: 118px;
+            padding: 13px 14px;
+            border: 2px solid rgba(152, 83, 18, 0.18);
+            border-radius: 8px;
+            background: #fff8ea;
+            color: #5b3412;
+            cursor: pointer;
+            font-size: 17px;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.1);
+        }
+
+        .preference-btn.active {
+            background: #e67e22;
+            color: #fff;
+            border-color: #ffbd72;
+            font-weight: bold;
+        }
+
+        .avatar-preview {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin: 12px 0;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .avatar-img {
+            width: 58px;
+            height: 58px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 3px solid #fff2ce;
+            background: #fff;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+        }
+
+        .avatar-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 58px);
+            justify-content: center;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .avatar-option {
+            width: 58px;
+            height: 58px;
+            padding: 0;
+            border: 3px solid transparent;
+            border-radius: 50%;
+            background: transparent;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .avatar-option.active {
+            border-color: #e67e22;
+            box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.2);
+        }
+
+        .avatar-option img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        #rules-toggle {
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            z-index: 80;
+            min-width: 70px;
+            height: 42px;
+            border-radius: 999px;
+            border: 2px solid rgba(255, 255, 255, 0.88);
+            background: #5b3412;
+            color: #fff7d1;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        #rules-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 18px;
+            background: rgba(0, 0, 0, 0.68);
+        }
+
+        #rules-modal .panel {
+            width: calc(100vw - 36px);
+            width: calc(100dvw - 36px);
+            max-width: 680px;
+            max-height: min(760px, calc(100vh - 36px));
+            overflow-y: auto;
+            background: #fffdf4;
+            color: #222;
+            text-align: left;
+            box-shadow: 0 18px 46px rgba(0, 0, 0, 0.35);
+            font-family: 'KaiTi', '楷体', 'STKaiti', 'AR PL UKai CN', serif;
+            font-size: 17px;
+        }
+
+        .rules-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .rules-header h2 {
+            margin: 0;
+            font-family: 'KaiTi', '楷体', 'STKaiti', 'AR PL UKai CN', serif;
+            font-size: 22px;
+        }
+
+        .rules-close {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            border: none;
+            background: #e67e22;
+            color: #fff;
+            cursor: pointer;
+            font-size: 22px;
+            line-height: 1;
+        }
+
+        .rules-section {
+            padding: 12px 0;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .rules-section h3 {
+            margin: 0 0 8px;
+            color: #7a3f00;
+            font-family: 'KaiTi', '楷体', 'STKaiti', 'AR PL UKai CN', serif;
+            font-size: 17px;
+            font-weight: bold;
+        }
+
+        .rules-section p,
+        .rules-section li {
+            margin: 6px 0;
+            line-height: 1.7;
+            font-family: 'KaiTi', '楷体', 'STKaiti', 'AR PL UKai CN', serif;
+            font-size: 17px;
+        }
+
+        .rules-section ul,
+        .rules-section ol {
+            margin: 6px 0 0;
+            padding-left: 20px;
+            line-height: 1.7;
+        }
+
         .player-card {
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.26);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.72);
+            color: #2b1a0c;
             padding: 8px 12px;
             margin: 5px;
             border-radius: 8px;
+            font-size: 17px;
+            font-weight: bold;
+        }
+
+        .avatar-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 5px;
+            padding: 7px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.76);
+            color: #2b1a0c;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .avatar-chip img,
+        .btn-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255, 255, 255, 0.9);
+            background: #fff;
+        }
+
+        .btn-with-avatar {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            vertical-align: middle;
+        }
+
+        #result-panel {
+            display: none;
+            max-width: 760px;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 12px;
+            margin-top: 14px;
+        }
+
+        .result-card {
+            background: rgba(255, 255, 255, 0.68);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
         }
 
         #table-center {
@@ -141,13 +466,110 @@
             background: #ffffff;
             color: #222;
         }
+
+        #round-info-widget {
+            position: fixed;
+            top: 96px;
+            left: 16px;
+            z-index: 50;
+            text-align: left;
+        }
+
+        #round-info-toggle {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            border: none;
+            background: #fff8c7;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            font-size: 24px;
+        }
+
+        #round-info-panel {
+            width: 260px;
+            max-height: 70vh;
+            overflow-y: auto;
+            margin: 10px 0 0;
+            background: rgba(255, 255, 255, 0.95);
+            color: #222;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+        }
+
+        .info-row {
+            margin: 10px 0;
+        }
+
+        .info-label {
+            display: block;
+            margin-bottom: 2px;
+            color: #666;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .info-value {
+            display: block;
+            line-height: 1.45;
+            word-break: break-word;
+        }
+
+        @media (max-width: 600px) {
+            #rules-toggle {
+                top: 10px;
+                left: 10px;
+            }
+
+            #round-info-widget {
+                top: 78px;
+                left: 10px;
+            }
+
+            #round-info-panel {
+                width: min(270px, calc(100vw - 24px));
+            }
+        }
     </style>
 </head>
 <body class="day">
+    <button id="rules-toggle" type="button" aria-label="查看规则" title="查看规则" onclick="openRules()">📜 规则</button>
+
     <div id="screen-login" class="screen active">
         <h1>奶酪大盗</h1>
-        <p>输入名字加入房间，然后在夜里根据自己的骰子点数醒来。</p>
-        <input type="text" id="username" placeholder="名字" maxlength="20">
+        <p>登录账号后加入房间，然后在夜里根据自己的骰子点数醒来。</p>
+        <div class="panel account-panel">
+            <h3>账号</h3>
+            <p id="account-status">请先登录或注册账号。</p>
+            <div id="auth-form">
+                <div class="account-fields">
+                    <input type="text" id="account-username" placeholder="账号名" maxlength="20">
+                    <input type="password" id="account-password" placeholder="密码">
+                </div>
+                <button class="btn btn-start" onclick="loginAccount()">登录</button>
+                <button class="btn btn-peek" onclick="registerAccount()">注册</button>
+            </div>
+            <div id="account-actions" style="display:none;">
+                <div class="avatar-preview">
+                    <img id="current-avatar" class="avatar-img" alt="当前头像">
+                    <span id="current-account-name"></span>
+                </div>
+                <p class="preference-title">选择头像</p>
+                <div id="avatar-grid" class="avatar-grid"></div>
+                <div style="text-align:right; margin-top:8px;">
+                    <button type="button" onclick="logoutAccount()" style="background:none;border:none;padding:2px 0;color:#999;font-size:12px;cursor:pointer;text-decoration:underline;">退出账号</button>
+                </div>
+            </div>
+        </div>
+        <div class="panel preference-panel">
+            <p class="preference-title">身份偏好（不公开）</p>
+            <div class="preference-options">
+                <button class="preference-btn" type="button" data-role-preference="any" onclick="selectRolePreference('any')">随缘</button>
+                <button class="preference-btn" type="button" data-role-preference="Thief" onclick="selectRolePreference('Thief')">想当大盗</button>
+                <button class="preference-btn" type="button" data-role-preference="Critter" onclick="selectRolePreference('Critter')">想当呆呆鼠</button>
+                <button class="preference-btn" type="button" data-role-preference="GoodRat" onclick="selectRolePreference('GoodRat')">想当好鼠</button>
+            </div>
+            <p class="muted">偏好只会提高概率，不保证一定拿到。</p>
+        </div>
         <button class="btn btn-start" onclick="joinGame()">加入</button>
     </div>
 
@@ -155,6 +577,16 @@
         <h2>等待开局</h2>
         <p>当前人数：<span id="player-count">0</span></p>
         <p class="muted">至少需要 <span id="min-player-count">3</span> 人。</p>
+        <div class="panel preference-panel">
+            <p class="preference-title">我的身份偏好（不公开）</p>
+            <div class="preference-options">
+                <button class="preference-btn" type="button" data-role-preference="any" onclick="selectRolePreference('any')">随缘</button>
+                <button class="preference-btn" type="button" data-role-preference="Thief" onclick="selectRolePreference('Thief')">想当大盗</button>
+                <button class="preference-btn" type="button" data-role-preference="Critter" onclick="selectRolePreference('Critter')">想当呆呆鼠</button>
+                <button class="preference-btn" type="button" data-role-preference="GoodRat" onclick="selectRolePreference('GoodRat')">想当好鼠</button>
+            </div>
+            <p class="muted">开局前可以修改，其他玩家看不到。</p>
+        </div>
         <div id="player-list" class="panel"></div>
         <button id="start-btn" class="btn btn-start" onclick="startGame()">开始游戏</button>
         <p id="lobby-tip" class="muted"></p>
@@ -185,10 +617,41 @@
     </div>
 
     <div id="screen-day" class="screen">
+        <div id="round-info-widget">
+            <button id="round-info-toggle" type="button" aria-label="查看本轮信息" title="查看本轮信息" onclick="toggleRoundInfo()">💡</button>
+            <div id="round-info-panel" class="panel" style="display:none;">
+                <h3>本轮信息</h3>
+                <div class="info-row">
+                    <span class="info-label">我的身份是：</span>
+                    <span id="round-info-role" class="info-value">未分配</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">我的点数是：</span>
+                    <span id="round-info-dice" class="info-value">未知</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">我查看的人是：</span>
+                    <span id="round-info-peek" class="info-value">未查看</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">我睁眼的时候奶酪：</span>
+                    <span id="round-info-cheese" class="info-value">未睁眼</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">和我一起睁眼的人是：</span>
+                    <span id="round-info-peers" class="info-value">未睁眼</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">我看见谁偷了奶酪：</span>
+                    <span id="round-info-thief" class="info-value">没看见</span>
+                </div>
+            </div>
+        </div>
         <h1>天亮了</h1>
         <p>请投票选出你怀疑的玩家。</p>
         <div id="vote-list" class="panel"></div>
         <p id="day-message"></p>
+        <div id="result-panel" class="panel"></div>
     </div>
 
     <div id="identity-modal">
@@ -196,6 +659,69 @@
             <h3>查看身份</h3>
             <p id="identity-modal-text"></p>
             <button class="btn btn-start" onclick="confirmIdentity()">知道了</button>
+        </div>
+    </div>
+
+    <div id="rules-modal" onclick="handleRulesBackdropClick(event)">
+        <div class="panel" role="dialog" aria-modal="true" aria-labelledby="rules-title">
+            <div class="rules-header">
+                <h2 id="rules-title">游戏规则</h2>
+                <button class="rules-close" type="button" aria-label="关闭规则" onclick="closeRules()">×</button>
+            </div>
+
+            <div class="rules-section">
+                <h3>开局</h3>
+                <p>每局至少 3 人。开局前可以选择身份偏好：随缘、想当大盗、想当呆呆鼠、想当好鼠。</p>
+                <p>偏好不公开，只会提高概率，不保证一定拿到。每局仍然只有 1 名奶酪大盗、1 名呆呆鼠，其余玩家是好鼠。</p>
+            </div>
+
+            <div class="rules-section">
+                <h3>身份</h3>
+                <ul>
+                    <li>奶酪大盗：夜晚偷走奶酪，并在夜晚结束后选择一名同伙。</li>
+                    <li>好鼠：找出奶酪大盗，阻止大盗阵营获胜。</li>
+                    <li>呆呆鼠：希望自己在白天被投出去。</li>
+                    <li>同伙：由大盗在夜晚结束后选择。你会知道自己是同伙，也会知道大盗是谁。</li>
+                </ul>
+            </div>
+
+            <div class="rules-section">
+                <h3>夜晚</h3>
+                <ol>
+                    <li>每名玩家会得到一个 1 到 6 的点数。</li>
+                    <li>夜晚按 1 点到 6 点依次进行，点数等于当前时刻的玩家睁眼。</li>
+                    <li>睁眼时可以看到奶酪是否还在、谁和你一起睁眼。如果你和大盗一起醒来，会看见 ta 偷走奶酪。闭眼时没有视野，看不到奶酪状态。</li>
+                    <li>大盗在自己醒来时，如果奶酪还在，必须偷走。</li>
+                    <li>若某个时刻只有一名好鼠或呆呆鼠醒来，该玩家可以查看一名玩家的点数。大盗即使单独醒来，也无法查看其他人点数。</li>
+                </ol>
+            </div>
+
+            <div class="rules-section">
+                <h3>白天投票</h3>
+                <p>天亮后所有人投票，可以投任何玩家，也可以投自己。最高票玩家出局；如果最高票平票，则无人出局，本局平局。</p>
+            </div>
+
+            <div class="rules-section">
+                <h3>胜负</h3>
+                <ul>
+                    <li>投出奶酪大盗：好鼠阵营胜利。</li>
+                    <li>投出呆呆鼠：呆呆鼠胜利。</li>
+                    <li>投出同伙或普通好鼠：大盗阵营胜利。</li>
+                    <li>如果呆呆鼠同时是同伙且被投出：大盗和呆呆鼠共赢。</li>
+                </ul>
+            </div>
+
+            <div class="rules-section">
+                <h3>金币</h3>
+                <ul>
+                    <li>金币绑定账号，登录同一个账号会保留累计金币。</li>
+                    <li>好鼠阵营胜利：所有好鼠各得 1 倍金币。</li>
+                    <li>大盗和同伙胜利：大盗、同伙各得 1 倍金币。</li>
+                    <li>呆呆鼠单独被投出：呆呆鼠得 2 倍金币。</li>
+                    <li>呆呆鼠同时是同伙且被投出：大盗和呆呆鼠各得 1 倍金币。</li>
+                    <li>失败玩家不得金币。</li>
+                </ul>
+            </div>
         </div>
     </div>
 
@@ -209,10 +735,30 @@
             GoodRat: '好鼠',
             '?': '未分配'
         };
+        const rolePreferenceLabels = {
+            any: '随缘',
+            Thief: '想当大盗',
+            Critter: '想当呆呆鼠',
+            GoodRat: '想当好鼠',
+        };
+        const backgroundFiles = ['背景图1.jpg', '背景图2.jpg', '背景图3.jpg'];
+        const avatarFiles = [
+            '卡通老鼠图1.png',
+            '卡通老鼠图2.png',
+            '卡通老鼠图3.png',
+            '卡通老鼠图4.jpg',
+            '卡通老鼠图5.jpg',
+            '卡通老鼠图6.jpg',
+            '卡通老鼠图7.png',
+            '卡通老鼠图8.png',
+        ];
 
         let myId = '';
         let allPlayers = [];
         let myIdentity = { role: '?', dice: 0, isFollower: false };
+        let authToken = localStorage.getItem('cheese-auth-token') || '';
+        let currentAccount = null;
+        let rolePreference = getStoredRolePreference();
         let hasJoined = false;
         let selectedVoteId = null;
         let minPlayers = 3;
@@ -221,32 +767,297 @@
         let currentNightData = null;
         let hasCompletedNightTurn = false;
         let peekResultText = '';
+        let roundInfo = createEmptyRoundInfo();
+
+        function assetUrl(fileName) {
+            return `/assets/${encodeURIComponent(fileName)}`;
+        }
+
+        function setRandomBackground() {
+            const fileName = backgroundFiles[Math.floor(Math.random() * backgroundFiles.length)];
+            document.body.style.setProperty('--page-bg', `url("${assetUrl(fileName)}")`);
+        }
 
         function showScreen(id) {
             document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
             document.getElementById(id).classList.add('active');
         }
 
-        function joinGame() {
-            const name = document.getElementById('username').value.trim();
-            if (!name) {
-                alert('请输入名字');
+        function openRules() {
+            document.getElementById('rules-modal').style.display = 'flex';
+        }
+
+        function closeRules() {
+            document.getElementById('rules-modal').style.display = 'none';
+        }
+
+        function handleRulesBackdropClick(event) {
+            if (event.target.id === 'rules-modal') {
+                closeRules();
+            }
+        }
+
+        async function submitAccount(path) {
+            const username = document.getElementById('account-username').value.trim();
+            const password = document.getElementById('account-password').value;
+            if (!username || password.length < 4) {
+                alert('请输入账号名，密码至少 4 位。');
                 return;
             }
 
-            socket.emit('join', name);
+            try {
+                const response = await fetch(path, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || '账号操作失败。');
+                }
+                authToken = data.token;
+                currentAccount = data.account;
+                localStorage.setItem('cheese-auth-token', authToken);
+                document.getElementById('account-password').value = '';
+                renderAccountUI();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        function loginAccount() {
+            submitAccount('/api/login');
+        }
+
+        function registerAccount() {
+            submitAccount('/api/register');
+        }
+
+        function logoutAccount() {
+            authToken = '';
+            currentAccount = null;
+            hasJoined = false;
+            localStorage.removeItem('cheese-auth-token');
+            renderAccountUI();
+            showScreen('screen-login');
+        }
+
+        async function restoreAccount() {
+            if (!authToken) {
+                renderAccountUI();
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/me', {
+                    headers: { Authorization: `Bearer ${authToken}` },
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || '登录已失效。');
+                }
+                currentAccount = data.account;
+            } catch (_error) {
+                authToken = '';
+                currentAccount = null;
+                localStorage.removeItem('cheese-auth-token');
+            }
+            renderAccountUI();
+        }
+
+        function renderAccountUI() {
+            const isLoggedIn = Boolean(currentAccount);
+            document.getElementById('auth-form').style.display = isLoggedIn ? 'none' : 'block';
+            document.getElementById('account-actions').style.display = isLoggedIn ? 'block' : 'none';
+            document.getElementById('account-status').innerText = isLoggedIn
+                ? `已登录：${currentAccount.username}，累计金币 ${currentAccount.coins || 0}`
+                : '请先登录或注册账号。';
+            renderAvatarPicker();
+        }
+
+        function renderAvatarPicker() {
+            const grid = document.getElementById('avatar-grid');
+            if (!grid) {
+                return;
+            }
+
+            grid.innerHTML = '';
+            if (!currentAccount) {
+                return;
+            }
+
+            document.getElementById('current-avatar').src = assetUrl(currentAccount.avatar || avatarFiles[0]);
+            document.getElementById('current-account-name').innerText =
+                `${currentAccount.username} · ${currentAccount.coins || 0} 金币`;
+
+            avatarFiles.forEach((avatar) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'avatar-option';
+                button.classList.toggle('active', currentAccount.avatar === avatar);
+                button.onclick = () => selectAvatar(avatar);
+
+                const image = document.createElement('img');
+                image.src = assetUrl(avatar);
+                image.alt = '头像';
+                button.appendChild(image);
+                grid.appendChild(button);
+            });
+        }
+
+        async function selectAvatar(avatar) {
+            if (!currentAccount || !authToken) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/me/avatar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${authToken}`,
+                    },
+                    body: JSON.stringify({ avatar }),
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || '头像更新失败。');
+                }
+                currentAccount = data.account;
+                renderAccountUI();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        function createAvatarChip(player) {
+            const chip = document.createElement('span');
+            chip.className = 'avatar-chip';
+            if (player && player.avatar) {
+                const image = document.createElement('img');
+                image.src = assetUrl(player.avatar);
+                image.alt = player.name || '玩家';
+                chip.appendChild(image);
+            }
+            const label = document.createElement('span');
+            label.innerText = player && player.name ? player.name : '未知玩家';
+            chip.appendChild(label);
+            return chip;
+        }
+
+        function decorateButtonWithAvatar(button, player, text) {
+            button.classList.add('btn-with-avatar');
+            button.innerHTML = '';
+            if (player && player.avatar) {
+                const image = document.createElement('img');
+                image.className = 'btn-avatar';
+                image.src = assetUrl(player.avatar);
+                image.alt = player.name || '玩家';
+                button.appendChild(image);
+            }
+            const label = document.createElement('span');
+            label.innerText = text;
+            button.appendChild(label);
+        }
+
+        function joinGame() {
+            if (!currentAccount || !authToken) {
+                alert('请先登录账号。');
+                return;
+            }
+
+            socket.emit('join', {
+                authToken,
+                rolePreference,
+            });
         }
 
         function startGame() {
             socket.emit('startGame');
         }
 
-        function getMyDisplayRoleKey() {
-            return myIdentity.isFollower ? 'Follower' : myIdentity.role;
+        function normalizeRolePreference(preference) {
+            return rolePreferenceLabels[preference] ? preference : 'any';
+        }
+
+        function getStoredRolePreference() {
+            return normalizeRolePreference(localStorage.getItem('cheese-role-preference') || 'any');
+        }
+
+        function selectRolePreference(preference) {
+            rolePreference = normalizeRolePreference(preference);
+            localStorage.setItem('cheese-role-preference', rolePreference);
+            renderRolePreferenceControls();
+
+            if (hasJoined) {
+                socket.emit('updateRolePreference', rolePreference);
+            }
+        }
+
+        function renderRolePreferenceControls() {
+            document.querySelectorAll('.preference-btn').forEach((button) => {
+                button.classList.toggle('active', button.dataset.rolePreference === rolePreference);
+            });
         }
 
         function getRoleText(roleKey) {
             return roleLabels[roleKey] || roleKey;
+        }
+
+        function createEmptyRoundInfo() {
+            return {
+                peek: null,
+                awakeCheese: null,
+                awakePeers: null,
+                sawThiefName: '',
+            };
+        }
+
+        function getIdentityText() {
+            const baseRole = getRoleText(myIdentity.role);
+            if (myIdentity.isFollower && myIdentity.role !== 'Thief') {
+                return `${baseRole}、同伙`;
+            }
+            return baseRole;
+        }
+
+        function getRoundInfoText() {
+            return {
+                role: getIdentityText(),
+                dice: myIdentity.dice ? `${myIdentity.dice} 点` : '未知',
+                peek: roundInfo.peek
+                    ? `${roundInfo.peek.name}，ta 的点数是 ${roundInfo.peek.dice} 点`
+                    : '未查看',
+                cheese:
+                    roundInfo.awakeCheese === null
+                        ? '未睁眼'
+                        : roundInfo.awakeCheese
+                          ? '还在桌上'
+                          : '已经不在桌上',
+                peers:
+                    roundInfo.awakePeers === null
+                        ? '未睁眼'
+                        : roundInfo.awakePeers.length
+                          ? roundInfo.awakePeers.join('、')
+                          : '只有我自己',
+                thief: roundInfo.sawThiefName || '没看见',
+            };
+        }
+
+        function renderRoundInfo() {
+            const text = getRoundInfoText();
+            document.getElementById('round-info-role').innerText = text.role;
+            document.getElementById('round-info-dice').innerText = text.dice;
+            document.getElementById('round-info-peek').innerText = text.peek;
+            document.getElementById('round-info-cheese').innerText = text.cheese;
+            document.getElementById('round-info-peers').innerText = text.peers;
+            document.getElementById('round-info-thief').innerText = text.thief;
+        }
+
+        function toggleRoundInfo() {
+            renderRoundInfo();
+            const panel = document.getElementById('round-info-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
         }
 
         function setSystemMessage(message) {
@@ -257,7 +1068,7 @@
         function showIdentityModal() {
             document.getElementById('identity-modal').style.display = 'flex';
             document.getElementById('identity-modal-text').innerText =
-                `你的身份是：${getRoleText(getMyDisplayRoleKey())}\n你的骰子是：${myIdentity.dice} 点`;
+                `你的身份是：${getIdentityText()}\n你的骰子是：${myIdentity.dice} 点`;
         }
 
         function hideIdentityModal() {
@@ -277,7 +1088,16 @@
             players.forEach((player) => {
                 const card = document.createElement('div');
                 card.className = 'player-card';
-                card.innerText = player.name;
+                if (player.avatar) {
+                    const avatar = document.createElement('img');
+                    avatar.className = 'avatar-img';
+                    avatar.src = assetUrl(player.avatar);
+                    avatar.alt = player.name;
+                    card.appendChild(avatar);
+                }
+                const name = document.createElement('span');
+                name.innerText = player.name;
+                card.appendChild(name);
                 container.appendChild(card);
             });
         }
@@ -313,9 +1133,14 @@
             }
         }
 
+        function setTableVisionVisible(isVisible) {
+            document.getElementById('table-center').style.display = isVisible ? 'block' : 'none';
+        }
+
         function goSleep(message) {
             document.body.className = 'night';
             showScreen('screen-night');
+            setTableVisionVisible(false);
             document.getElementById('sleep-mask').style.display = 'block';
             document.getElementById('wake-area').style.display = 'none';
             document.querySelector('#sleep-mask h1').innerText = message || '闭眼中...';
@@ -328,13 +1153,25 @@
         function wakeUp(data) {
             document.body.className = 'wake';
             showScreen('screen-night');
+            setTableVisionVisible(true);
             document.getElementById('sleep-mask').style.display = 'none';
             document.getElementById('wake-area').style.display = 'block';
-            document.getElementById('my-role').innerText = getRoleText(getMyDisplayRoleKey());
+            document.getElementById('my-role').innerText = getIdentityText();
             document.getElementById('my-dice').innerText = myIdentity.dice;
-            document.getElementById('peers-list').innerText = data.awakeNames.length
-                ? data.awakeNames.join('、')
-                : '只有你自己';
+            const peersList = document.getElementById('peers-list');
+            peersList.innerHTML = '';
+            const awakePlayers = data.awakePlayers || [];
+            if (awakePlayers.length) {
+                awakePlayers.forEach((player) => {
+                    peersList.appendChild(createAvatarChip(player));
+                });
+            } else {
+                peersList.innerText = '只有你自己';
+            }
+            if (roundInfo.awakeCheese === null && typeof data.cheeseAvailable === 'boolean') {
+                roundInfo.awakeCheese = data.cheeseAvailable;
+                roundInfo.awakePeers = [...data.awakeNames];
+            }
             const actionDiv = document.getElementById('actions-area');
             actionDiv.innerHTML = '';
             document.getElementById('peek-result').innerText = peekResultText;
@@ -358,7 +1195,7 @@
                     }
                     const peekBtn = document.createElement('button');
                     peekBtn.className = 'btn btn-peek';
-                    peekBtn.innerText = player.name;
+                    decorateButtonWithAvatar(peekBtn, player, player.name);
                     peekBtn.onclick = () => {
                         hasUsedPeek = true;
                         Array.from(actionDiv.querySelectorAll('.btn-peek')).forEach((btn) => {
@@ -416,9 +1253,10 @@
             if (myId === chooserId && myIdentity.role === 'Thief') {
                 document.body.className = 'wake';
                 showScreen('screen-night');
+                setTableVisionVisible(true);
                 document.getElementById('sleep-mask').style.display = 'none';
                 document.getElementById('wake-area').style.display = 'block';
-                document.getElementById('my-role').innerText = getRoleText(getMyDisplayRoleKey());
+                document.getElementById('my-role').innerText = getIdentityText();
                 document.getElementById('my-dice').innerText = myIdentity.dice;
                 document.getElementById('peers-list').innerText = '现在请选择一名同伙';
 
@@ -431,7 +1269,7 @@
                     }
                     const followBtn = document.createElement('button');
                     followBtn.className = 'btn btn-action';
-                    followBtn.innerText = `选择 ${player.name}`;
+                    decorateButtonWithAvatar(followBtn, player, `选择 ${player.name}`);
                     followBtn.onclick = () => socket.emit('thiefChooseFollower', player.id);
                     actionDiv.appendChild(followBtn);
                 });
@@ -447,7 +1285,7 @@
             allPlayers.forEach((player) => {
                 const voteBtn = document.createElement('button');
                 voteBtn.className = 'btn btn-vote';
-                voteBtn.innerText = `投 ${player.name}`;
+                decorateButtonWithAvatar(voteBtn, player, `投 ${player.name}`);
                 voteBtn.disabled = Boolean(selectedVoteId);
                 voteBtn.onclick = () => {
                     if (confirm(`确定投票给 ${player.name} 吗？`)) {
@@ -458,8 +1296,64 @@
             });
         }
 
+        function renderGameResult(result) {
+            const panel = document.getElementById('result-panel');
+            const coinRows = result.coinSummary || [];
+            const reveals = result.reveals || [];
+            const coinText = coinRows.length
+                ? coinRows.map((player) => `${player.name}：本局 +${player.earned}，累计 ${player.total}`).join('<br>')
+                : '本局无人获得金币。';
+
+            panel.innerHTML = `
+                <h2>结算</h2>
+                <p>${result.message}</p>
+                <h3>金币结算</h3>
+                <p>${coinText}</p>
+                <h3>身份公开</h3>
+                <div class="result-grid"></div>
+            `;
+
+            const grid = panel.querySelector('.result-grid');
+            reveals.forEach((player) => {
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                if (player.avatar) {
+                    const image = document.createElement('img');
+                    image.className = 'avatar-img';
+                    image.src = assetUrl(player.avatar);
+                    image.alt = player.name;
+                    card.appendChild(image);
+                }
+
+                const roleText =
+                    player.isFollower && player.role !== 'Thief'
+                        ? `同伙（原始身份 ${getRoleText(player.role)}）`
+                        : getRoleText(player.role);
+                const detail = document.createElement('p');
+                detail.innerHTML = `<strong>${player.name}</strong><br>${roleText}<br>骰子 ${player.dice}<br>累计 ${player.coins || 0} 金币`;
+                card.appendChild(detail);
+                grid.appendChild(card);
+            });
+
+            panel.style.display = 'block';
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
         socket.on('connect', () => {
             myId = socket.id;
+        });
+
+        socket.on('rolePreferenceUpdated', (data) => {
+            rolePreference = normalizeRolePreference(data.rolePreference);
+            localStorage.setItem('cheese-role-preference', rolePreference);
+            renderRolePreferenceControls();
+        });
+
+        socket.on('joinRejected', (payload) => {
+            alert(payload.message || '本局游戏已经开始，请等待下一局再加入。');
+            hasJoined = false;
+            document.body.className = 'day';
+            showScreen('screen-login');
         });
 
         socket.on('updateList', (payload) => {
@@ -482,6 +1376,9 @@
             currentNightData = null;
             hasCompletedNightTurn = false;
             peekResultText = '';
+            roundInfo = createEmptyRoundInfo();
+            document.getElementById('round-info-panel').style.display = 'none';
+            document.getElementById('result-panel').style.display = 'none';
             updateCheeseUI(true);
             setSystemMessage('游戏开始，请先查看并确认自己的身份。');
             goSleep('等待身份确认...');
@@ -489,6 +1386,7 @@
 
         socket.on('identityUpdate', (data) => {
             myIdentity = data;
+            renderRoundInfo();
             if (!announcedOpeningIdentity && data.role !== '?') {
                 announcedOpeningIdentity = true;
                 showIdentityModal();
@@ -502,6 +1400,7 @@
         socket.on('cheeseUpdate', (data) => {
             updateCheeseUI(data.cheeseAvailable);
             if (currentNightData && currentNightData.isAwake) {
+                roundInfo.sawThiefName = data.thiefId === myId ? '我自己' : data.thiefName;
                 currentNightData.cheeseAvailable = data.cheeseAvailable;
                 if (data.thiefId === myId) {
                     currentNightData.canSteal = false;
@@ -515,6 +1414,10 @@
         });
 
         socket.on('peekResult', (result) => {
+            roundInfo.peek = {
+                name: result.name,
+                dice: result.dice,
+            };
             peekResultText = `${result.name} 的骰子是 ${result.dice} 点`;
             document.getElementById('peek-result').innerText = peekResultText;
             if (currentNightData) {
@@ -535,6 +1438,9 @@
             selectedVoteId = null;
             document.body.className = 'day';
             showScreen('screen-day');
+            document.getElementById('round-info-panel').style.display = 'none';
+            document.getElementById('result-panel').style.display = 'none';
+            renderRoundInfo();
             setSystemMessage('请开始投票。');
             renderVoteList();
         });
@@ -556,6 +1462,7 @@
 
         socket.on('secretMessage', (data) => {
             myIdentity.isFollower = true;
+            renderRoundInfo();
             alert(`你被选为了同伙。\n奶酪大盗是：${data.thiefName}`);
         });
 
@@ -573,15 +1480,31 @@
 
         socket.on('gameOver', (result) => {
             hideIdentityModal();
-            const revealText = (result.reveals || []).map((player) => {
-                if (player.isFollower && player.role !== 'Thief') {
-                    return `${player.name}：同伙（原始身份 ${getRoleText(player.role)}，骰子 ${player.dice}）`;
-                }
-                return `${player.name}：${getRoleText(player.role)}，骰子 ${player.dice}`;
-            }).join('\n');
+            const myCoinRow = (result.coinSummary || []).find((player) => {
+                return currentAccount && player.name === currentAccount.username;
+            });
+            if (myCoinRow && currentAccount) {
+                currentAccount.coins = myCoinRow.total;
+                renderAccountUI();
+            }
 
-            alert(`${result.message}\n\n身份公开：\n${revealText}`);
+            renderGameResult(result);
+            alert(result.message);
         });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeRules();
+            }
+        });
+
+        setRandomBackground();
+        renderRolePreferenceControls();
+        renderAccountUI();
+        restoreAccount();
+        if (window.location.hash === '#rules') {
+            openRules();
+        }
     </script>
 </body>
 </html>

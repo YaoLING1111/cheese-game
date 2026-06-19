@@ -1,1 +1,11 @@
 node_modules/
+.tmp-*/
+data/
+
+# Debug screenshots at repo root
+current-*.png
+rules-*.png
+visual-*.png
+
+# Office docs
+*.docx

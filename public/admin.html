@@ -1,0 +1,174 @@
+﻿<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>濂堕叒澶х洍绠＄悊椤?/title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #111827;
+            color: #f3f4f6;
+        }
+
+        h1, h2 {
+            margin-top: 0;
+        }
+
+        .toolbar,
+        .room-card {
+            background: #1f2937;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        input {
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #374151;
+            background: #111827;
+            color: #f3f4f6;
+            min-width: 240px;
+        }
+
+        button {
+            padding: 10px 14px;
+            border: none;
+            border-radius: 8px;
+            background: #f59e0b;
+            color: #111827;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #374151;
+            padding: 8px;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .muted {
+            color: #9ca3af;
+        }
+
+        .online {
+            color: #34d399;
+        }
+
+        .offline {
+            color: #f87171;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <h1>濂堕叒澶х洍绠＄悊椤?/h1>
+        <p class="muted">杈撳叆绠＄悊鍙ｄ护鍚庡彲浠ユ煡鐪嬫墍鏈夋埧闂淬€佺帺瀹躲€佸湪绾跨姸鎬佸拰褰撳墠闃舵銆?/p>
+        <input type="password" id="admin-key" placeholder="绠＄悊鍙ｄ护">
+        <button onclick="loadRooms()">鍔犺浇</button>
+        <span id="status" class="muted"></span>
+    </div>
+
+    <div id="rooms"></div>
+
+    <script>
+        let pollingTimer = null;
+
+        function setStatus(message) {
+            document.getElementById('status').innerText = message || '';
+        }
+
+        function renderRooms(rooms) {
+            const container = document.getElementById('rooms');
+            if (!rooms.length) {
+                container.innerHTML = '<div class="room-card"><p>褰撳墠娌℃湁鎴块棿銆?/p></div>';
+                return;
+            }
+
+            container.innerHTML = rooms.map((room) => `
+                <div class="room-card">
+                    <h2>鎴块棿 ${room.roomCode}</h2>
+                    <p>闃舵锛?{room.gamePhase}${room.pausedPhase ? `锛堟殏鍋滃墠锛?{room.pausedPhase}锛塦 : ''}</p>
+                    <p>褰撳墠鏃跺埢锛?{room.currentHour || '-'}</p>
+                    <p>鍦ㄧ嚎浜烘暟锛?{room.onlineCount}/${room.playerCount}</p>
+                    <p class="muted">绯荤粺娑堟伅锛?{room.lastSystemMessage || '鏃?}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>鐜╁</th>
+                                <th>鍦ㄧ嚎</th>
+                                <th>韬唤</th>
+                                <th>楠板瓙</th>
+                                <th>鍚屼紮</th>
+                                <th>韬唤纭</th>
+                                <th>绂荤嚎绉掓暟</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${room.players.map((player) => `
+                                <tr>
+                                    <td>${player.name}</td>
+                                    <td class="${player.online ? 'online' : 'offline'}">${player.online ? '鍦ㄧ嚎' : '绂荤嚎'}</td>
+                                    <td>${player.role}</td>
+                                    <td>${player.dice}</td>
+                                    <td>${player.isFollower ? '鏄? : '鍚?}</td>
+                                    <td>${player.identityConfirmed ? '鏄? : '鍚?}</td>
+                                    <td>${player.disconnectedSeconds ?? '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `).join('');
+        }
+
+        async function loadRooms() {
+            const key = document.getElementById('admin-key').value.trim();
+            if (!key) {
+                alert('璇疯緭鍏ョ鐞嗗彛浠?);
+                return;
+            }
+
+            localStorage.setItem('cheese-admin-key', key);
+            setStatus('姝ｅ湪鍔犺浇...');
+
+            try {
+                const response = await fetch(`/api/admin/rooms?key=${encodeURIComponent(key)}`);
+                if (!response.ok) {
+                    throw new Error('绠＄悊鍙ｄ护閿欒鎴栨帴鍙ｄ笉鍙敤');
+                }
+                const data = await response.json();
+                renderRooms(data.rooms || []);
+                setStatus(`鏈€杩戝埛鏂帮細${new Date(data.generatedAt).toLocaleString()}`);
+                startPolling();
+            } catch (error) {
+                setStatus(error.message);
+            }
+        }
+
+        function startPolling() {
+            if (pollingTimer) {
+                clearInterval(pollingTimer);
+            }
+            pollingTimer = setInterval(loadRooms, 3000);
+        }
+
+        const storedKey = localStorage.getItem('cheese-admin-key') || '';
+        if (storedKey) {
+            document.getElementById('admin-key').value = storedKey;
+        }
+    </script>
+</body>
+</html>
