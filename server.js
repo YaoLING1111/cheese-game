@@ -13,160 +13,22 @@ const publicDir = path.join(__dirname, 'public');
 const dataDir = path.join(__dirname, 'data');
 const accountsFile = path.join(dataDir, 'accounts.json');
 
-// sessions: token -> accountId
-const sessions = new Map();
-
-app.use(express.json());
-app.use(express.static(publicDir));
-app.get('/', (_req, res) => {
-    res.sendFile(path.join(publicDir, 'index.html'));
-});
-
-// ─── 账号系统工具函数 ───────────────────────────────────────────────────────────
-
-function ensureDataDir() {
-    if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
-    }
-}
-
-function loadAccounts() {
-    ensureDataDir();
-    if (!fs.existsSync(accountsFile)) {
-        return [];
-    }
-    try {
-        return JSON.parse(fs.readFileSync(accountsFile, 'utf8')).accounts || [];
-    } catch (_err) {
-        return [];
-    }
-}
-
-function saveAccounts(accounts) {
-    ensureDataDir();
-    fs.writeFileSync(accountsFile, JSON.stringify({ accounts }, null, 2), 'utf8');
-}
-
-function hashPassword(password, salt) {
-    return crypto.createHmac('sha256', salt).update(password).digest('hex');
-}
-
-function normalizeUsername(raw) {
-    return String(raw || '').trim().toLowerCase();
-}
-
-function generateToken() {
-    return crypto.randomBytes(32).toString('hex');
-}
-
-function getAccountFromToken(token) {
-    if (!token) return null;
-    const accountId = sessions.get(token);
-    if (!accountId) return null;
-    const accounts = loadAccounts();
-    return accounts.find((a) => a.id === accountId) || null;
-}
-
-// ─── API 路由 ──────────────────────────────────────────────────────────────────
-
-app.post('/api/register', (req, res) => {
-    const username = normalizeUsername(req.body && req.body.username);
-    const password = String((req.body && req.body.password) || '');
-
-    if (!username || password.length < 4) {
-        return res.status(400).json({ message: '账号名不能为空，密码至少 4 位。' });
-    }
-
-    const accounts = loadAccounts();
-    if (accounts.some((a) => a.username === username)) {
-        return res.status(409).json({ message: '这个账号名已经被注册。' });
-    }
-
-    const salt = crypto.randomBytes(16).toString('hex');
-    const newAccount = {
-        id: crypto.randomUUID(),
-        username,
-        salt,
-        passwordHash: hashPassword(password, salt),
-        coins: 0,
-        avatar: null,
-        createdAt: new Date().toISOString(),
-    };
-
-    accounts.push(newAccount);
-    saveAccounts(accounts);
-
-    const token = generateToken();
-    sessions.set(token, newAccount.id);
-
-    return res.json({ token, account: publicAccount(newAccount) });
-});
-
-app.post('/api/login', (req, res) => {
-    const username = normalizeUsername(req.body && req.body.username);
-    const password = String((req.body && req.body.password) || '');
-
-    const accounts = loadAccounts();
-    const account = accounts.find((a) => a.username === username);
-    if (!account) {
-        return res.status(401).json({ message: '账号不存在。' });
-    }
-
-    if (hashPassword(password, account.salt) !== account.passwordHash) {
-        return res.status(401).json({ message: '密码不正确。' });
-    }
-
-    const token = generateToken();
-    sessions.set(token, account.id);
-
-    return res.json({ token, account: publicAccount(account) });
-});
-
-app.get('/api/me', (req, res) => {
-    const token = (req.headers.authorization || '').replace('Bearer ', '');
-    const account = getAccountFromToken(token);
-    if (!account) {
-        return res.status(401).json({ message: '登录已失效，请重新登录。' });
-    }
-    return res.json({ account: publicAccount(account) });
-});
-
-app.post('/api/me/avatar', (req, res) => {
-    const token = (req.headers.authorization || '').replace('Bearer ', '');
-    const account = getAccountFromToken(token);
-    if (!account) {
-        return res.status(401).json({ message: '登录已失效，请重新登录。' });
-    }
-
-    const avatar = String((req.body && req.body.avatar) || '').trim();
-    if (!avatar) {
-        return res.status(400).json({ message: '头像不能为空。' });
-    }
-
-    const accounts = loadAccounts();
-    const idx = accounts.findIndex((a) => a.id === account.id);
-    if (idx === -1) {
-        return res.status(404).json({ message: '账号不存在。' });
-    }
-
-    accounts[idx].avatar = avatar;
-    saveAccounts(accounts);
-
-    return res.json({ account: publicAccount(accounts[idx]) });
-});
-
-function publicAccount(account) {
-    return {
-        id: account.id,
-        username: account.username,
-        coins: account.coins || 0,
-        avatar: account.avatar || null,
-    };
-}
-
-// ─── 游戏逻辑 ──────────────────────────────────────────────────────────────────
-
 const MIN_PLAYERS = 3;
+const ACCOUNT_AVATARS = [
+    '卡通老鼠图1.png',
+    '卡通老鼠图2.png',
+    '卡通老鼠图3.png',
+    '卡通老鼠图4.jpg',
+    '卡通老鼠图5.jpg',
+    '卡通老鼠图6.jpg',
+    '卡通老鼠图7.png',
+    '卡通老鼠图8.png',
+];
+
+const VALID_ROLE_PREFERENCES = new Set(['any', 'Thief', 'Critter', 'GoodRat']);
+
+// token -> accountId. Tokens are intentionally in-memory; account data is persistent.
+const sessions = new Map();
 
 let players = [];
 let gamePhase = 'waiting';
@@ -179,14 +41,112 @@ let identityConfirmedIds = new Set();
 let currentAwakeIds = [];
 let completedNightIds = new Set();
 
+app.use(express.json());
+app.use(express.static(publicDir));
+
+app.get('/', (_req, res) => {
+    res.sendFile(path.join(publicDir, 'index.html'));
+});
+
+app.post('/api/register', (req, res) => {
+    const username = normalizeUsername(req.body && req.body.username);
+    const password = String((req.body && req.body.password) || '');
+
+    if (!username || username.length > 20) {
+        return res.status(400).json({ message: '账号名不能为空，且最多 20 个字。' });
+    }
+
+    if (password.length < 4) {
+        return res.status(400).json({ message: '密码至少 4 位。' });
+    }
+
+    const accounts = loadAccounts();
+    if (accounts.some((account) => account.username === username)) {
+        return res.status(409).json({ message: '这个账号名已经被注册。' });
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const newAccount = {
+        id: crypto.randomUUID(),
+        username,
+        salt,
+        passwordHash: hashPassword(password, salt),
+        coins: 0,
+        avatar: getRandomAvatar(),
+        createdAt: new Date().toISOString(),
+    };
+
+    accounts.push(newAccount);
+    saveAccounts(accounts);
+
+    const token = generateToken();
+    sessions.set(token, newAccount.id);
+
+    res.json({ token, account: getSafeAccount(newAccount) });
+});
+
+app.post('/api/login', (req, res) => {
+    const username = normalizeUsername(req.body && req.body.username);
+    const password = String((req.body && req.body.password) || '');
+
+    const accounts = loadAccounts();
+    const account = accounts.find((item) => item.username === username);
+    if (!account || !verifyPassword(password, account)) {
+        return res.status(401).json({ message: '账号或密码不正确。' });
+    }
+
+    const token = generateToken();
+    sessions.set(token, account.id);
+
+    res.json({ token, account: getSafeAccount(account) });
+});
+
+app.get('/api/me', (req, res) => {
+    const account = getAccountFromRequest(req);
+    if (!account) {
+        return res.status(401).json({ message: '登录已失效，请重新登录。' });
+    }
+
+    res.json({ account: getSafeAccount(account) });
+});
+
+app.post('/api/me/avatar', (req, res) => {
+    const account = getAccountFromRequest(req);
+    if (!account) {
+        return res.status(401).json({ message: '登录已失效，请重新登录。' });
+    }
+
+    const avatar = String((req.body && req.body.avatar) || '').trim();
+    if (!ACCOUNT_AVATARS.includes(avatar)) {
+        return res.status(400).json({ message: '请选择有效头像。' });
+    }
+
+    const accounts = loadAccounts();
+    const storedAccount = accounts.find((item) => item.id === account.id);
+    if (!storedAccount) {
+        return res.status(404).json({ message: '账号不存在。' });
+    }
+
+    storedAccount.avatar = avatar;
+    saveAccounts(accounts);
+
+    const player = players.find((item) => item.accountId === storedAccount.id);
+    if (player) {
+        player.avatar = avatar;
+        emitLobbyList();
+    }
+
+    res.json({ account: getSafeAccount(storedAccount) });
+});
+
 io.on('connection', (socket) => {
     console.log('玩家连接:', socket.id);
 
     socket.on('join', (payload) => {
-        const token = payload && payload.authToken ? String(payload.authToken) : null;
-        const rolePreference = payload && payload.rolePreference ? String(payload.rolePreference) : 'any';
-
+        const token = payload && payload.authToken ? String(payload.authToken) : '';
+        const rolePreference = normalizeRolePreference(payload && payload.rolePreference);
         const account = getAccountFromToken(token);
+
         if (!account) {
             socket.emit('joinRejected', { message: '请先登录账号再加入游戏。' });
             return;
@@ -197,24 +157,28 @@ io.on('connection', (socket) => {
             return;
         }
 
-        if (players.some((p) => p.id === socket.id)) {
+        if (players.some((player) => player.accountId === account.id && player.id !== socket.id)) {
+            socket.emit('joinRejected', { message: '这个账号已经在房间里了。' });
             return;
         }
 
-        let name = account.username;
-        let suffix = 1;
-        while (players.some((p) => p.name === name)) {
-            name = `${account.username}#${suffix++}`;
+        const existingPlayer = findPlayer(socket.id);
+        if (existingPlayer) {
+            existingPlayer.rolePreference = rolePreference;
+            existingPlayer.avatar = account.avatar;
+            emitLobbyList();
+            return;
         }
 
-        players.push(createFreshPlayer(socket.id, name, account.avatar, account.id, rolePreference));
+        players.push(createFreshPlayer(socket.id, account.username, account.avatar, account.id, rolePreference));
         emitLobbyList();
     });
 
     socket.on('updateRolePreference', (preference) => {
         const player = findPlayer(socket.id);
-        if (!player) return;
-        player.rolePreference = String(preference || 'any');
+        if (!player || gamePhase !== 'waiting') return;
+
+        player.rolePreference = normalizeRolePreference(preference);
         socket.emit('rolePreferenceUpdated', { rolePreference: player.rolePreference });
     });
 
@@ -261,15 +225,13 @@ io.on('connection', (socket) => {
         cheeseHolder = me.id;
         console.log(`大盗 ${me.name} 偷走了奶酪`);
 
-        players
-            .filter((p) => p.dice === currentHour)
-            .forEach((p) => {
-                io.to(p.id).emit('cheeseUpdate', {
-                    cheeseAvailable: false,
-                    thiefName: me.name,
-                    thiefId: me.id,
-                });
+        getCurrentAwakePlayers().forEach((player) => {
+            io.to(player.id).emit('cheeseUpdate', {
+                cheeseAvailable: false,
+                thiefName: me.name,
+                thiefId: me.id,
             });
+        });
     });
 
     socket.on('peekPlayer', (targetId) => {
@@ -300,7 +262,7 @@ io.on('connection', (socket) => {
             return;
         }
 
-        io.emit(
+        emitToCurrentAwakePlayers(
             'systemMessage',
             `本轮夜晚进度：${completedNightIds.size}/${currentAwakeIds.length} 位醒着玩家已完成`
         );
@@ -341,7 +303,7 @@ io.on('connection', (socket) => {
     socket.on('submitVote', (targetId) => {
         const voter = findPlayer(socket.id);
         const target = findPlayer(targetId);
-        if (gamePhase !== 'day' || !voter || !target) {
+        if (gamePhase !== 'day' || !voter || !target || votes[socket.id]) {
             return;
         }
 
@@ -355,7 +317,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         const leavingPlayer = findPlayer(socket.id);
-        players = players.filter((p) => p.id !== socket.id);
+        players = players.filter((player) => player.id !== socket.id);
 
         if (players.length === 0) {
             clearGameTimer();
@@ -373,23 +335,136 @@ io.on('connection', (socket) => {
     });
 });
 
-// ─── 玩家工厂 ──────────────────────────────────────────────────────────────────
+function ensureDataDir() {
+    if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+    }
+}
+
+function loadAccounts() {
+    ensureDataDir();
+    if (!fs.existsSync(accountsFile)) {
+        return [];
+    }
+
+    try {
+        const payload = JSON.parse(fs.readFileSync(accountsFile, 'utf8'));
+        const accounts = Array.isArray(payload.accounts) ? payload.accounts : [];
+        let changed = false;
+
+        accounts.forEach((account) => {
+            if (typeof account.coins !== 'number') {
+                account.coins = 0;
+                changed = true;
+            }
+
+            if (!ACCOUNT_AVATARS.includes(account.avatar)) {
+                account.avatar = ACCOUNT_AVATARS[3];
+                changed = true;
+            }
+        });
+
+        if (changed) {
+            saveAccounts(accounts);
+        }
+
+        return accounts;
+    } catch (error) {
+        console.error('读取账号数据失败:', error);
+        return [];
+    }
+}
+
+function saveAccounts(accounts) {
+    ensureDataDir();
+    fs.writeFileSync(accountsFile, JSON.stringify({ accounts }, null, 2), 'utf8');
+}
+
+function hashPassword(password, salt) {
+    return crypto.scryptSync(password, salt, 32).toString('hex');
+}
+
+function legacyHashPassword(password, salt) {
+    return crypto.createHmac('sha256', salt).update(password).digest('hex');
+}
+
+function verifyPassword(password, account) {
+    const currentHash = hashPassword(password, account.salt);
+    if (currentHash === account.passwordHash) {
+        return true;
+    }
+
+    // Keeps older local accounts usable if they were created by the temporary HMAC version.
+    if (legacyHashPassword(password, account.salt) === account.passwordHash) {
+        account.passwordHash = currentHash;
+        const accounts = loadAccounts();
+        const storedAccount = accounts.find((item) => item.id === account.id);
+        if (storedAccount) {
+            storedAccount.passwordHash = currentHash;
+            saveAccounts(accounts);
+        }
+        return true;
+    }
+
+    return false;
+}
+
+function normalizeUsername(raw) {
+    return String(raw || '').trim().toLowerCase();
+}
+
+function normalizeRolePreference(raw) {
+    const preference = String(raw || 'any');
+    return VALID_ROLE_PREFERENCES.has(preference) ? preference : 'any';
+}
+
+function generateToken() {
+    return crypto.randomBytes(32).toString('hex');
+}
+
+function getAuthToken(req) {
+    return String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+}
+
+function getAccountFromRequest(req) {
+    return getAccountFromToken(getAuthToken(req));
+}
+
+function getAccountFromToken(token) {
+    if (!token) return null;
+    const accountId = sessions.get(token);
+    if (!accountId) return null;
+
+    const accounts = loadAccounts();
+    return accounts.find((account) => account.id === accountId) || null;
+}
+
+function getSafeAccount(account) {
+    return {
+        id: account.id,
+        username: account.username,
+        coins: account.coins || 0,
+        avatar: ACCOUNT_AVATARS.includes(account.avatar) ? account.avatar : ACCOUNT_AVATARS[3],
+    };
+}
+
+function getRandomAvatar() {
+    return ACCOUNT_AVATARS[Math.floor(Math.random() * ACCOUNT_AVATARS.length)];
+}
 
 function createFreshPlayer(id, name, avatar, accountId, rolePreference) {
     return {
         id,
         name,
-        avatar: avatar || null,
-        accountId: accountId || null,
-        rolePreference: rolePreference || 'any',
+        avatar: ACCOUNT_AVATARS.includes(avatar) ? avatar : ACCOUNT_AVATARS[3],
+        accountId,
+        rolePreference: normalizeRolePreference(rolePreference),
         role: '?',
         dice: 0,
         isFollower: false,
         hasPeeked: false,
     };
 }
-
-// ─── 游戏工具函数 ──────────────────────────────────────────────────────────────
 
 function emitLobbyList() {
     io.emit('updateList', {
@@ -400,15 +475,15 @@ function emitLobbyList() {
 }
 
 function getPublicPlayers() {
-    return players.map((p) => ({
-        id: p.id,
-        name: p.name,
-        avatar: p.avatar,
+    return players.map((player) => ({
+        id: player.id,
+        name: player.name,
+        avatar: player.avatar,
     }));
 }
 
 function findPlayer(id) {
-    return players.find((p) => p.id === id);
+    return players.find((player) => player.id === id);
 }
 
 function clearGameTimer() {
@@ -427,69 +502,75 @@ function resetRoundState() {
     currentAwakeIds = [];
     completedNightIds = new Set();
 
-    players.forEach((p) => {
-        p.role = '?';
-        p.dice = 0;
-        p.isFollower = false;
-        p.hasPeeked = false;
+    players.forEach((player) => {
+        player.role = '?';
+        player.dice = 0;
+        player.isFollower = false;
+        player.hasPeeked = false;
     });
 }
 
 function assignRolesAndDice() {
-    const n = players.length;
-    const roles = ['Thief', 'Critter'];
-    while (roles.length < n) roles.push('GoodRat');
-
-    // 先按偏好分桶，再随机抽
-    const wantThief = players.filter((p) => p.rolePreference === 'Thief');
-    const wantCritter = players.filter((p) => p.rolePreference === 'Critter');
-    const wantGood = players.filter((p) => p.rolePreference === 'GoodRat');
-    const wantAny = players.filter((p) => p.rolePreference === 'any');
-
-    roles.sort(() => Math.random() - 0.5);
-
-    const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
-    const remaining = shuffle([...players]);
-
-    players.forEach((p) => {
-        p.role = '?';
-        p.dice = Math.floor(Math.random() * 6) + 1;
-        p.isFollower = false;
-        p.hasPeeked = false;
+    players.forEach((player) => {
+        player.role = '?';
+        player.dice = Math.floor(Math.random() * 6) + 1;
+        player.isFollower = false;
+        player.hasPeeked = false;
     });
 
-    // 简单概率提升：偏好者优先排入对应角色
-    const assigned = new Set();
-    const rolePool = [...roles];
+    const assignedIds = new Set();
+    assignSingleRoleWithPreference('Thief', assignedIds);
+    assignSingleRoleWithPreference('Critter', assignedIds);
 
-    function tryAssign(pref, roleName) {
-        const idx = rolePool.indexOf(roleName);
-        if (idx === -1) return;
-        const candidates = players.filter((p) => p.rolePreference === pref && !assigned.has(p.id));
-        if (candidates.length === 0) return;
-        const chosen = candidates[Math.floor(Math.random() * candidates.length)];
-        chosen.role = roleName;
-        assigned.add(chosen.id);
-        rolePool.splice(idx, 1);
-    }
-
-    tryAssign('Thief', 'Thief');
-    tryAssign('Critter', 'Critter');
-
-    // 剩余玩家随机分配剩余角色
-    const unassigned = players.filter((p) => !assigned.has(p.id));
-    shuffle(unassigned);
-    unassigned.forEach((p, i) => {
-        p.role = rolePool[i] || 'GoodRat';
+    players.forEach((player) => {
+        if (!assignedIds.has(player.id)) {
+            player.role = 'GoodRat';
+        }
     });
 }
 
+function assignSingleRoleWithPreference(role, assignedIds) {
+    const candidates = players.filter((player) => !assignedIds.has(player.id));
+    const chosen = pickWeighted(candidates, (player) => getRolePreferenceWeight(player, role));
+    if (!chosen) return;
+
+    chosen.role = role;
+    assignedIds.add(chosen.id);
+}
+
+function getRolePreferenceWeight(player, role) {
+    if (player.rolePreference === role) {
+        return 3;
+    }
+
+    if (player.rolePreference === 'GoodRat' && role !== 'GoodRat') {
+        return 0.5;
+    }
+
+    return 1;
+}
+
+function pickWeighted(items, getWeight) {
+    const total = items.reduce((sum, item) => sum + getWeight(item), 0);
+    if (total <= 0) return items[0] || null;
+
+    let roll = Math.random() * total;
+    for (const item of items) {
+        roll -= getWeight(item);
+        if (roll <= 0) {
+            return item;
+        }
+    }
+
+    return items[items.length - 1] || null;
+}
+
 function sendPrivateIdentities() {
-    players.forEach((p) => {
-        io.to(p.id).emit('identityUpdate', {
-            role: p.role,
-            dice: p.dice,
-            isFollower: p.isFollower,
+    players.forEach((player) => {
+        io.to(player.id).emit('identityUpdate', {
+            role: player.role,
+            dice: player.dice,
+            isFollower: player.isFollower,
         });
     });
 }
@@ -504,8 +585,8 @@ function startNightHour(hour) {
     }
 
     console.log(`--- ${hour} 点 ---`);
-    const awakePlayers = players.filter((p) => p.dice === hour);
-    currentAwakeIds = awakePlayers.map((p) => p.id);
+    const awakePlayers = players.filter((player) => player.dice === hour);
+    currentAwakeIds = awakePlayers.map((player) => player.id);
     completedNightIds = new Set();
 
     if (currentAwakeIds.length === 0) {
@@ -524,24 +605,25 @@ function startNightHour(hour) {
         return;
     }
 
-    players.forEach((p) => {
-        const isAwake = currentAwakeIds.includes(p.id);
+    players.forEach((player) => {
+        const isAwake = currentAwakeIds.includes(player.id);
         const canPeek =
             isAwake &&
             currentAwakeIds.length === 1 &&
-            ['GoodRat', 'Critter'].includes(p.role) &&
-            !p.hasPeeked;
-        const canSteal = isAwake && p.role === 'Thief' && cheeseHolder === null;
-        io.to(p.id).emit('nightHour', {
+            ['GoodRat', 'Critter'].includes(player.role) &&
+            !player.hasPeeked;
+        const canSteal = isAwake && player.role === 'Thief' && cheeseHolder === null;
+
+        io.to(player.id).emit('nightHour', {
             hour,
             isAwake,
             awakeNames: awakePlayers
-                .filter((ap) => ap.id !== p.id)
-                .map((ap) => ap.name),
+                .filter((awakePlayer) => awakePlayer.id !== player.id)
+                .map((awakePlayer) => awakePlayer.name),
             cheeseAvailable: isAwake ? cheeseHolder === null : null,
             canSteal,
             canPeek,
-            canComplete: isAwake && !isNightActionStillRequired(p, canPeek),
+            canComplete: isAwake && !isNightActionStillRequired(player, canPeek),
             completionRequired: isAwake,
             sleepingMessage: `${hour} 点进行中，请保持闭眼。`,
         });
@@ -552,7 +634,7 @@ function startChooseFollowerPhase() {
     clearGameTimer();
     gamePhase = 'chooseFollower';
 
-    const thief = players.find((p) => p.role === 'Thief');
+    const thief = players.find((player) => player.role === 'Thief');
     if (!thief || players.length < 2) {
         startDayPhase();
         return;
@@ -580,6 +662,7 @@ function canStealCheese(player) {
             gamePhase === 'night' &&
             player.role === 'Thief' &&
             player.dice === currentHour &&
+            currentAwakeIds.includes(player.id) &&
             cheeseHolder === null
     );
 }
@@ -588,9 +671,9 @@ function canPeekAtPlayer(player, target) {
     if (!player || !target || player.id === target.id || gamePhase !== 'night') return false;
     if (!['GoodRat', 'Critter'].includes(player.role)) return false;
     if (player.hasPeeked) return false;
-    if (player.dice !== currentHour) return false;
-    const awake = players.filter((p) => p.dice === currentHour);
-    return awake.length === 1 && awake[0].id === player.id;
+    if (player.dice !== currentHour || !currentAwakeIds.includes(player.id)) return false;
+
+    return currentAwakeIds.length === 1 && currentAwakeIds[0] === player.id;
 }
 
 function canCompleteNightTurn(player) {
@@ -602,7 +685,9 @@ function canCompleteNightTurn(player) {
 function isNightActionStillRequired(player, canPeekOverride) {
     if (!player || !currentAwakeIds.includes(player.id)) return false;
 
-    if (player.role === 'Thief' && player.dice === currentHour && cheeseHolder === null) return true;
+    if (player.role === 'Thief' && player.dice === currentHour && cheeseHolder === null) {
+        return true;
+    }
 
     const canPeek =
         typeof canPeekOverride === 'boolean'
@@ -615,8 +700,18 @@ function isNightActionStillRequired(player, canPeekOverride) {
     return canPeek;
 }
 
+function getCurrentAwakePlayers() {
+    return players.filter((player) => currentAwakeIds.includes(player.id));
+}
+
+function emitToCurrentAwakePlayers(eventName, payload) {
+    getCurrentAwakePlayers().forEach((player) => {
+        io.to(player.id).emit(eventName, payload);
+    });
+}
+
 function advanceNightFlow() {
-    io.emit('systemMessage', '');
+    emitToCurrentAwakePlayers('systemMessage', '');
     startNightHour(currentHour + 1);
 }
 
@@ -626,29 +721,32 @@ function calculateWinner() {
         voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
     });
 
-    const sorted = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
-    const top = sorted[0];
-    const second = sorted[1];
+    const sortedVotes = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
+    const topVote = sortedVotes[0];
+    const secondVote = sortedVotes[1];
 
     let result;
-    if (!top || (second && second[1] === top[1])) {
-        result = { winner: '平局', message: '平票，无人出局。' };
+    let victim = null;
+    if (!topVote || (secondVote && secondVote[1] === topVote[1])) {
+        result = { winner: '平局', message: '平票，无人出局，本局平局。' };
     } else {
-        const victim = findPlayer(top[0]);
+        victim = findPlayer(topVote[0]);
         result = buildWinnerResult(victim);
-        if (result.winner !== '平局') {
-            awardCoins(result.winner, victim);
-        }
     }
+
+    const coinSummary = awardCoins(result.winner, victim);
+    const coinByAccountId = new Map(coinSummary.map((row) => [row.accountId, row.total]));
 
     io.emit('gameOver', {
         ...result,
-        reveals: players.map((p) => ({
-            name: p.name,
-            avatar: p.avatar,
-            role: p.role,
-            isFollower: p.isFollower,
-            dice: p.dice,
+        coinSummary: coinSummary.map(({ accountId, ...row }) => row),
+        reveals: players.map((player) => ({
+            name: player.name,
+            avatar: player.avatar,
+            role: player.role,
+            isFollower: player.isFollower,
+            dice: player.dice,
+            coins: coinByAccountId.get(player.accountId) || getStoredCoins(player.accountId),
         })),
     });
 
@@ -680,11 +778,11 @@ function buildWinnerResult(victim) {
     if (victim.role === 'Thief') {
         return {
             winner: '好鼠',
-            message: `奶酪大盗【${victim.name}】被投出，好鼠胜利。`,
+            message: `奶酪大盗【${victim.name}】被投出，好鼠阵营胜利。`,
         };
     }
 
-    const hasFollower = players.some((p) => p.isFollower);
+    const hasFollower = players.some((player) => player.isFollower);
     return {
         winner: hasFollower ? '奶酪大盗和同伙' : '奶酪大盗',
         message: `【${victim.name}】被投出，奶酪大盗${hasFollower ? '和同伙' : ''}胜利。`,
@@ -693,35 +791,55 @@ function buildWinnerResult(victim) {
 
 function awardCoins(winner, victim) {
     const accounts = loadAccounts();
-    let changed = false;
+    const earnedByAccountId = new Map();
 
-    function addCoin(accountId, amount) {
-        const idx = accounts.findIndex((a) => a.id === accountId);
-        if (idx !== -1) {
-            accounts[idx].coins = (accounts[idx].coins || 0) + amount;
-            changed = true;
-        }
+    function addCoin(player, amount) {
+        if (!player || !player.accountId || amount <= 0) return;
+        earnedByAccountId.set(player.accountId, (earnedByAccountId.get(player.accountId) || 0) + amount);
     }
 
     if (winner === '好鼠') {
-        players.filter((p) => p.role === 'GoodRat' && !p.isFollower && p.accountId).forEach((p) => addCoin(p.accountId, 1));
-        const critter = players.find((p) => p.role === 'Critter' && !p.isFollower);
-        if (critter && critter.accountId) addCoin(critter.accountId, 1);
+        players
+            .filter((player) => player.role === 'GoodRat' && !player.isFollower)
+            .forEach((player) => addCoin(player, 1));
     } else if (winner === '呆呆鼠') {
-        if (victim && victim.accountId) addCoin(victim.accountId, 2);
+        addCoin(victim, 2);
     } else if (winner === '奶酪大盗' || winner === '奶酪大盗和同伙') {
-        const thief = players.find((p) => p.role === 'Thief');
-        if (thief && thief.accountId) addCoin(thief.accountId, 1);
-        if (winner === '奶酪大盗和同伙') {
-            players.filter((p) => p.isFollower && p.accountId).forEach((p) => addCoin(p.accountId, 1));
-        }
+        addCoin(players.find((player) => player.role === 'Thief'), 1);
+        players.filter((player) => player.isFollower).forEach((player) => addCoin(player, 1));
     } else if (winner === '大盗和呆呆鼠') {
-        const thief = players.find((p) => p.role === 'Thief');
-        if (thief && thief.accountId) addCoin(thief.accountId, 1);
-        if (victim && victim.accountId) addCoin(victim.accountId, 1);
+        addCoin(players.find((player) => player.role === 'Thief'), 1);
+        addCoin(victim, 1);
     }
 
-    if (changed) saveAccounts(accounts);
+    let changed = false;
+    accounts.forEach((account) => {
+        const earned = earnedByAccountId.get(account.id) || 0;
+        if (earned > 0) {
+            account.coins = (account.coins || 0) + earned;
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        saveAccounts(accounts);
+    }
+
+    const accountById = new Map(accounts.map((account) => [account.id, account]));
+    return players.map((player) => {
+        const account = accountById.get(player.accountId);
+        return {
+            accountId: player.accountId,
+            name: player.name,
+            earned: earnedByAccountId.get(player.accountId) || 0,
+            total: account ? account.coins || 0 : 0,
+        };
+    });
+}
+
+function getStoredCoins(accountId) {
+    const account = loadAccounts().find((item) => item.id === accountId);
+    return account ? account.coins || 0 : 0;
 }
 
 function abortCurrentGame(message) {
@@ -731,8 +849,6 @@ function abortCurrentGame(message) {
     io.emit('gameAborted', { message });
     emitLobbyList();
 }
-
-// ─── 启动服务器 ────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
