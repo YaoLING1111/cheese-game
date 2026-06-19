@@ -14,6 +14,7 @@ const dataDir = path.join(__dirname, 'data');
 const accountsFile = path.join(dataDir, 'accounts.json');
 
 const MIN_PLAYERS = 3;
+const EMPTY_NIGHT_HOUR_DELAY_MS = 1800;
 const ACCOUNT_AVATARS = [
     '卡通老鼠图1.png',
     '卡通老鼠图2.png',
@@ -594,14 +595,20 @@ function startNightHour(hour) {
             hour,
             isAwake: false,
             awakeNames: [],
+            awakePlayers: [],
             cheeseAvailable: null,
             canSteal: false,
             canPeek: false,
             canComplete: false,
             completionRequired: false,
-            sleepingMessage: `${hour} 点无人醒来，自动进入下一时刻。`,
+            sleepingMessage: `${hour} 点无人醒来，请继续闭眼。`,
         });
-        advanceNightFlow();
+        clearGameTimer();
+        gameTimer = setTimeout(() => {
+            if (gamePhase === 'night' && currentHour === hour && currentAwakeIds.length === 0) {
+                advanceNightFlow();
+            }
+        }, EMPTY_NIGHT_HOUR_DELAY_MS);
         return;
     }
 
@@ -620,6 +627,13 @@ function startNightHour(hour) {
             awakeNames: awakePlayers
                 .filter((awakePlayer) => awakePlayer.id !== player.id)
                 .map((awakePlayer) => awakePlayer.name),
+            awakePlayers: awakePlayers
+                .filter((awakePlayer) => awakePlayer.id !== player.id)
+                .map((awakePlayer) => ({
+                    id: awakePlayer.id,
+                    name: awakePlayer.name,
+                    avatar: awakePlayer.avatar,
+                })),
             cheeseAvailable: isAwake ? cheeseHolder === null : null,
             canSteal,
             canPeek,
