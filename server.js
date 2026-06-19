@@ -14,7 +14,7 @@ const dataDir = path.join(__dirname, 'data');
 const accountsFile = path.join(dataDir, 'accounts.json');
 
 const MIN_PLAYERS = 3;
-const EMPTY_NIGHT_HOUR_DELAY_MS = 1800;
+const EMPTY_NIGHT_HOUR_DELAY_MS = 8000;
 const ACCOUNT_AVATARS = [
     '卡通老鼠图1.png',
     '卡通老鼠图2.png',
@@ -601,7 +601,7 @@ function startNightHour(hour) {
             canPeek: false,
             canComplete: false,
             completionRequired: false,
-            sleepingMessage: `${hour} 点无人醒来，请继续闭眼。`,
+            sleepingMessage: `${hour} 点进行中，请保持闭眼。`,
         });
         clearGameTimer();
         gameTimer = setTimeout(() => {

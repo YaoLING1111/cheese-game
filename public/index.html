@@ -18,6 +18,10 @@
             isolation: isolate;
             --page-bg: url('/assets/背景图1.jpg');
             --overlay: rgba(26, 13, 5, 0.58);
+            --overlay-bottom: rgba(14, 8, 5, 0.72);
+            --bg-brightness: 1;
+            --bg-saturation: 1.05;
+            --modal-bg: url('/assets/弹窗背景.jpg');
         }
 
         body::before,
@@ -33,7 +37,7 @@
             background-image: var(--page-bg);
             background-size: cover;
             background-position: center;
-            filter: saturate(1.05);
+            filter: saturate(var(--bg-saturation)) brightness(var(--bg-brightness));
             transform: scale(1.02);
         }
 
@@ -41,7 +45,7 @@
             z-index: -1;
             background:
                 radial-gradient(circle at top, rgba(255, 178, 77, 0.2), transparent 38%),
-                linear-gradient(180deg, var(--overlay), rgba(14, 8, 5, 0.72));
+                linear-gradient(180deg, var(--overlay), var(--overlay-bottom));
         }
 
         * {
@@ -50,16 +54,21 @@
 
         body.night {
             --overlay: rgba(5, 8, 18, 0.76);
+            --overlay-bottom: rgba(2, 4, 10, 0.82);
             color: #d8d8d8;
         }
 
         body.wake {
-            --overlay: rgba(60, 30, 10, 0.5);
-            color: #fff7e8;
+            --overlay: rgba(255, 246, 218, 0.12);
+            --overlay-bottom: rgba(255, 238, 198, 0.16);
+            --bg-brightness: 1.16;
+            --bg-saturation: 1.12;
+            color: #2b1a0c;
         }
 
         body.day {
             --overlay: rgba(72, 35, 6, 0.5);
+            --overlay-bottom: rgba(14, 8, 5, 0.72);
             color: #fff7e8;
         }
 
@@ -273,7 +282,9 @@
             font-weight: bold;
         }
 
-        #rules-modal {
+        #rules-modal,
+        #identity-modal,
+        #app-modal {
             position: fixed;
             inset: 0;
             display: none;
@@ -281,21 +292,78 @@
             justify-content: center;
             z-index: 1000;
             padding: 18px;
-            background: rgba(0, 0, 0, 0.68);
+            background: rgba(14, 8, 5, 0.62);
+            backdrop-filter: blur(4px);
         }
 
-        #rules-modal .panel {
+        #rules-modal .panel,
+        #identity-modal .panel,
+        #app-modal .panel {
             width: calc(100vw - 36px);
             width: calc(100dvw - 36px);
             max-width: 680px;
             max-height: min(760px, calc(100vh - 36px));
             overflow-y: auto;
-            background: #fffdf4;
-            color: #222;
+            position: relative;
+            background-image:
+                linear-gradient(180deg, rgba(255, 247, 224, 0.9), rgba(255, 232, 184, 0.86)),
+                var(--modal-bg);
+            background-size: cover;
+            background-position: center;
+            color: #2b1a0c;
             text-align: left;
-            box-shadow: 0 18px 46px rgba(0, 0, 0, 0.35);
+            border: 2px solid rgba(255, 240, 180, 0.92);
+            box-shadow: 0 22px 58px rgba(0, 0, 0, 0.42);
             font-family: 'KaiTi', '楷体', 'STKaiti', 'AR PL UKai CN', serif;
             font-size: 17px;
+        }
+
+        #identity-modal .panel,
+        #app-modal .panel {
+            max-width: 430px;
+            text-align: center;
+            padding: 26px 24px;
+        }
+
+        #rules-modal .panel::before,
+        #identity-modal .panel::before,
+        #app-modal .panel::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 50% 36%, rgba(255, 218, 83, 0.22), transparent 28%),
+                linear-gradient(135deg, rgba(255, 255, 255, 0.24), transparent 42%);
+            pointer-events: none;
+        }
+
+        #rules-modal .panel > *,
+        #identity-modal .panel > *,
+        #app-modal .panel > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        #app-modal-title,
+        #identity-modal h3 {
+            margin: 0 0 12px;
+            color: #5b2b05;
+            font-size: 26px;
+        }
+
+        #app-modal-message,
+        #identity-modal-text {
+            white-space: pre-line;
+            line-height: 1.7;
+            color: #2b1a0c;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 18px;
         }
 
         .rules-header {
@@ -449,22 +517,6 @@
         #peek-result {
             font-weight: bold;
             min-height: 24px;
-        }
-
-        #identity-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.75);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 999;
-        }
-
-        #identity-modal .panel {
-            max-width: 360px;
-            background: #ffffff;
-            color: #222;
         }
 
         #round-info-widget {
@@ -662,6 +714,14 @@
         </div>
     </div>
 
+    <div id="app-modal">
+        <div class="panel" role="dialog" aria-modal="true" aria-labelledby="app-modal-title">
+            <h3 id="app-modal-title">提示</h3>
+            <p id="app-modal-message"></p>
+            <div id="app-modal-actions" class="modal-actions"></div>
+        </div>
+    </div>
+
     <div id="rules-modal" onclick="handleRulesBackdropClick(event)">
         <div class="panel" role="dialog" aria-modal="true" aria-labelledby="rules-title">
             <div class="rules-header">
@@ -797,31 +857,100 @@
             }
         }
 
+        function showAppModal({ title = '提示', message = '', confirmText = '知道了', cancelText = '' }) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('app-modal');
+                const titleEl = document.getElementById('app-modal-title');
+                const messageEl = document.getElementById('app-modal-message');
+                const actionsEl = document.getElementById('app-modal-actions');
+
+                titleEl.innerText = title;
+                messageEl.innerText = message;
+                actionsEl.innerHTML = '';
+
+                function close(value) {
+                    modal.style.display = 'none';
+                    actionsEl.innerHTML = '';
+                    resolve(value);
+                }
+
+                if (cancelText) {
+                    const cancelButton = document.createElement('button');
+                    cancelButton.type = 'button';
+                    cancelButton.className = 'btn';
+                    cancelButton.innerText = cancelText;
+                    cancelButton.onclick = () => close(false);
+                    actionsEl.appendChild(cancelButton);
+                }
+
+                const confirmButton = document.createElement('button');
+                confirmButton.type = 'button';
+                confirmButton.className = 'btn btn-start';
+                confirmButton.innerText = confirmText;
+                confirmButton.onclick = () => close(true);
+                actionsEl.appendChild(confirmButton);
+
+                modal.style.display = 'flex';
+                confirmButton.focus();
+            });
+        }
+
+        function showAppAlert(message, title = '提示') {
+            return showAppModal({ title, message, confirmText: '知道了' });
+        }
+
+        function showAppConfirm(message, title = '确认') {
+            return showAppModal({
+                title,
+                message,
+                confirmText: '确定',
+                cancelText: '再想想',
+            });
+        }
+
+        async function requestJson(path, options = {}) {
+            let response;
+            try {
+                response = await fetch(path, options);
+            } catch (_error) {
+                throw new Error('连接服务器失败。请确认页面是从 http://127.0.0.1:3000 打开的，然后刷新重试。');
+            }
+
+            let data = {};
+            try {
+                data = await response.json();
+            } catch (_error) {
+                data = {};
+            }
+
+            if (!response.ok) {
+                throw new Error(data.message || `请求失败（${response.status}）`);
+            }
+
+            return data;
+        }
+
         async function submitAccount(path) {
             const username = document.getElementById('account-username').value.trim();
             const password = document.getElementById('account-password').value;
             if (!username || password.length < 4) {
-                alert('请输入账号名，密码至少 4 位。');
+                showAppAlert('请输入账号名，密码至少 4 位。');
                 return;
             }
 
             try {
-                const response = await fetch(path, {
+                const data = await requestJson(path, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password }),
                 });
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || '账号操作失败。');
-                }
                 authToken = data.token;
                 currentAccount = data.account;
                 localStorage.setItem('cheese-auth-token', authToken);
                 document.getElementById('account-password').value = '';
                 renderAccountUI();
             } catch (error) {
-                alert(error.message);
+                showAppAlert(error.message);
             }
         }
 
@@ -849,13 +978,9 @@
             }
 
             try {
-                const response = await fetch('/api/me', {
+                const data = await requestJson('/api/me', {
                     headers: { Authorization: `Bearer ${authToken}` },
                 });
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || '登录已失效。');
-                }
                 currentAccount = data.account;
             } catch (_error) {
                 authToken = '';
@@ -911,7 +1036,7 @@
             }
 
             try {
-                const response = await fetch('/api/me/avatar', {
+                const data = await requestJson('/api/me/avatar', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -919,14 +1044,10 @@
                     },
                     body: JSON.stringify({ avatar }),
                 });
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || '头像更新失败。');
-                }
                 currentAccount = data.account;
                 renderAccountUI();
             } catch (error) {
-                alert(error.message);
+                showAppAlert(error.message);
             }
         }
 
@@ -962,7 +1083,7 @@
 
         function joinGame() {
             if (!currentAccount || !authToken) {
-                alert('请先登录账号。');
+                showAppAlert('请先登录账号。');
                 return;
             }
 
@@ -1151,7 +1272,7 @@
         }
 
         function wakeUp(data) {
-            document.body.className = 'wake';
+            document.body.className = 'night';
             showScreen('screen-night');
             setTableVisionVisible(true);
             document.getElementById('sleep-mask').style.display = 'none';
@@ -1251,7 +1372,7 @@
             updateCheeseUI(cheeseAvailable);
 
             if (myId === chooserId && myIdentity.role === 'Thief') {
-                document.body.className = 'wake';
+                document.body.className = 'night';
                 showScreen('screen-night');
                 setTableVisionVisible(true);
                 document.getElementById('sleep-mask').style.display = 'none';
@@ -1287,8 +1408,8 @@
                 voteBtn.className = 'btn btn-vote';
                 decorateButtonWithAvatar(voteBtn, player, `投 ${player.name}`);
                 voteBtn.disabled = Boolean(selectedVoteId);
-                voteBtn.onclick = () => {
-                    if (confirm(`确定投票给 ${player.name} 吗？`)) {
+                voteBtn.onclick = async () => {
+                    if (await showAppConfirm(`确定投票给 ${player.name} 吗？`, '确认投票')) {
                         socket.emit('submitVote', player.id);
                     }
                 };
@@ -1350,7 +1471,7 @@
         });
 
         socket.on('joinRejected', (payload) => {
-            alert(payload.message || '本局游戏已经开始，请等待下一局再加入。');
+            showAppAlert(payload.message || '本局游戏已经开始，请等待下一局再加入。');
             hasJoined = false;
             document.body.className = 'day';
             showScreen('screen-login');
@@ -1409,7 +1530,7 @@
                 }
             }
             if (data.thiefId !== myId) {
-                alert(`你亲眼看到【${data.thiefName}】偷走了奶酪。`);
+                showAppAlert(`你亲眼看到【${data.thiefName}】偷走了奶酪。`, '你看见了');
             }
         });
 
@@ -1463,7 +1584,7 @@
         socket.on('secretMessage', (data) => {
             myIdentity.isFollower = true;
             renderRoundInfo();
-            alert(`你被选为了同伙。\n奶酪大盗是：${data.thiefName}`);
+            showAppAlert(`你被选为了同伙。\n奶酪大盗是：${data.thiefName}`, '秘密消息');
         });
 
         socket.on('systemMessage', (message) => {
@@ -1475,7 +1596,7 @@
             document.body.className = 'day';
             showScreen('screen-waiting');
             setSystemMessage(payload.message);
-            alert(payload.message);
+            showAppAlert(payload.message);
         });
 
         socket.on('gameOver', (result) => {
@@ -1489,7 +1610,7 @@
             }
 
             renderGameResult(result);
-            alert(result.message);
+            showAppAlert(result.message, '本局结果');
         });
 
         document.addEventListener('keydown', (event) => {
