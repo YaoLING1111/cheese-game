@@ -748,7 +748,7 @@ function calculateWinner() {
         result = buildWinnerResult(victim);
     }
 
-    const coinSummary = awardCoins(result.winner, victim);
+    const coinSummary = awardCoins(victim);
     const coinByAccountId = new Map(coinSummary.map((row) => [row.accountId, row.total]));
 
     io.emit('gameOver', {
@@ -803,7 +803,7 @@ function buildWinnerResult(victim) {
     };
 }
 
-function awardCoins(winner, victim) {
+function awardCoins(victim) {
     const accounts = loadAccounts();
     const earnedByAccountId = new Map();
 
@@ -812,18 +812,19 @@ function awardCoins(winner, victim) {
         earnedByAccountId.set(player.accountId, (earnedByAccountId.get(player.accountId) || 0) + amount);
     }
 
-    if (winner === '好鼠') {
+    if (!victim) {
+        // 平票或无有效投票：无人获得金币。
+    } else if (victim.role === 'Thief') {
         players
             .filter((player) => player.role === 'GoodRat' && !player.isFollower)
             .forEach((player) => addCoin(player, 1));
-    } else if (winner === '呆呆鼠') {
+    } else if (victim.role === 'Critter' && victim.isFollower) {
         addCoin(victim, 2);
-    } else if (winner === '奶酪大盗' || winner === '奶酪大盗和同伙') {
+    } else if (victim.role === 'Critter') {
+        addCoin(victim, 1);
+    } else {
         addCoin(players.find((player) => player.role === 'Thief'), 1);
         players.filter((player) => player.isFollower).forEach((player) => addCoin(player, 1));
-    } else if (winner === '大盗和呆呆鼠') {
-        addCoin(players.find((player) => player.role === 'Thief'), 1);
-        addCoin(victim, 1);
     }
 
     let changed = false;

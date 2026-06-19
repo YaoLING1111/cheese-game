@@ -775,10 +775,10 @@
                 <h3>金币</h3>
                 <ul>
                     <li>金币绑定账号，登录同一个账号会保留累计金币。</li>
-                    <li>好鼠阵营胜利：所有好鼠各得 1 倍金币。</li>
+                    <li>好鼠阵营胜利：只有原始身份为好鼠且不是同伙的玩家各得 1 倍金币。呆呆鼠和同伙不算好鼠。</li>
                     <li>大盗和同伙胜利：大盗、同伙各得 1 倍金币。</li>
-                    <li>呆呆鼠单独被投出：呆呆鼠得 2 倍金币。</li>
-                    <li>呆呆鼠同时是同伙且被投出：大盗和呆呆鼠各得 1 倍金币。</li>
+                    <li>呆呆鼠单独被投出：呆呆鼠得 1 倍金币。</li>
+                    <li>呆呆鼠同时是同伙且被投出：只有呆呆鼠得 2 倍金币，大盗不得金币。</li>
                     <li>失败玩家不得金币。</li>
                 </ul>
             </div>
@@ -1419,11 +1419,14 @@
 
         function renderGameResult(result) {
             const panel = document.getElementById('result-panel');
-            const coinRows = result.coinSummary || [];
+            const coinRows = (result.coinSummary || []).filter((player) => player.earned > 0);
             const reveals = result.reveals || [];
             const coinText = coinRows.length
                 ? coinRows.map((player) => `${player.name}：本局 +${player.earned}，累计 ${player.total}`).join('<br>')
                 : '本局无人获得金币。';
+
+            document.getElementById('vote-list').style.display = 'none';
+            document.getElementById('day-message').style.display = 'none';
 
             panel.innerHTML = `
                 <h2>结算</h2>
@@ -1559,6 +1562,8 @@
             selectedVoteId = null;
             document.body.className = 'day';
             showScreen('screen-day');
+            document.getElementById('vote-list').style.display = 'block';
+            document.getElementById('day-message').style.display = 'block';
             document.getElementById('round-info-panel').style.display = 'none';
             document.getElementById('result-panel').style.display = 'none';
             renderRoundInfo();
